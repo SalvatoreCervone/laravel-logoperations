@@ -169,32 +169,32 @@ Tutti gli step e i trace vengono salvati automaticamente nel campo `custom_trace
 
 Il pacchetto espone automaticamente le seguenti API sotto `/api/logoperations` (con alias retrocompatibile `/api/log-operations`):
 
-| Metodo | Endpoint                                  | Descrizione                              |
-|--------|-------------------------------------------|------------------------------------------|
-| GET    | `/api/logoperations`                      | Lista paginata con filtri                |
-| GET    | `/api/logoperations/{id}`                 | Dettaglio singolo log con stack          |
-| GET    | `/api/logoperations/stats`                | Statistiche KPI (errori, durata, ecc.)   |
-| GET    | `/api/logoperations/http-codes`           | Codici HTTP registrati                   |
-| GET    | `/api/logoperations/verbs`                | Verbi HTTP registrati                    |
-| GET    | `/api/logoperations/applications`         | Applicazioni registrate                  |
+| Metodo | Endpoint                          | Descrizione                            |
+| ------ | --------------------------------- | -------------------------------------- |
+| GET    | `/api/logoperations`              | Lista paginata con filtri              |
+| GET    | `/api/logoperations/{id}`         | Dettaglio singolo log con stack        |
+| GET    | `/api/logoperations/stats`        | Statistiche KPI (errori, durata, ecc.) |
+| GET    | `/api/logoperations/http-codes`   | Codici HTTP registrati                 |
+| GET    | `/api/logoperations/verbs`        | Verbi HTTP registrati                  |
+| GET    | `/api/logoperations/applications` | Applicazioni registrate                |
 
 ### Parametri di ricerca (GET)
 
-| Parametro                    | Tipo        | Descrizione                              |
-|------------------------------|-------------|------------------------------------------|
-| `user`                       | string      | Ricerca utente (nome, cognome, email)    |
-| `verb` / `verb[]`           | string/array| Verbi HTTP (get, post, put, delete...)   |
-| `status_codes[]`            | array       | Codici HTTP (200, 404, 500...)           |
-| `date_from`                 | datetime    | Data inizio range                        |
-| `date_to`                   | datetime    | Data fine range                          |
-| `ip`                        | string      | Indirizzo IP (ricerca parziale)          |
-| `controller`                | string      | Controller@metodo (ricerca parziale)     |
-| `app`                       | string      | Nome applicazione                        |
-| `text`                      | string      | Ricerca libera (rotta, errore, ecc.)     |
-| `has_error`                 | boolean     | Solo risposte con errore (>= 400)        |
-| `has_unfinished_transaction`| boolean     | Solo transazioni pendenti rilevate       |
-| `per_page`                  | integer     | Elementi per pagina (default 20, max 100)|
-| `g`                         | string      | Gruppi ricerca base64 (retrocompatibilità)|
+| Parametro                    | Tipo         | Descrizione                                |
+| ---------------------------- | ------------ | ------------------------------------------ |
+| `user`                       | string       | Ricerca utente (nome, cognome, email)      |
+| `verb` / `verb[]`            | string/array | Verbi HTTP (get, post, put, delete...)     |
+| `status_codes[]`             | array        | Codici HTTP (200, 404, 500...)             |
+| `date_from`                  | datetime     | Data inizio range                          |
+| `date_to`                    | datetime     | Data fine range                            |
+| `ip`                         | string       | Indirizzo IP (ricerca parziale)            |
+| `controller`                 | string       | Controller@metodo (ricerca parziale)       |
+| `app`                        | string       | Nome applicazione                          |
+| `text`                       | string       | Ricerca libera (rotta, errore, ecc.)       |
+| `has_error`                  | boolean      | Solo risposte con errore (>= 400)          |
+| `has_unfinished_transaction` | boolean      | Solo transazioni pendenti rilevate         |
+| `per_page`                   | integer      | Elementi per pagina (default 20, max 100)  |
+| `g`                          | string       | Gruppi ricerca base64 (retrocompatibilità) |
 
 ---
 
@@ -204,25 +204,22 @@ Il pacchetto espone automaticamente le seguenti API sotto `/api/logoperations` (
 
 ```vue
 <script setup>
-import { LogOperationsViewer } from './vendor/logoperations'
+import { LogOperationsViewer } from "./vendor/logoperations";
 </script>
 
 <template>
-  <LogOperationsViewer
-    api-base="/api/logoperations"
-    :per-page="20"
-  />
+  <LogOperationsViewer api-base="/api/logoperations" :per-page="20" />
 </template>
 ```
 
 ### Come plugin globale Vue
 
 ```js
-import LogOperationsPlugin from './vendor/logoperations'
+import LogOperationsPlugin from "./vendor/logoperations";
 
-const app = createApp(App)
-app.use(LogOperationsPlugin)
-app.mount('#app')
+const app = createApp(App);
+app.use(LogOperationsPlugin);
+app.mount("#app");
 ```
 
 Poi nel template:
@@ -233,12 +230,12 @@ Poi nel template:
 
 ### Componenti esportati
 
-| Componente              | Descrizione                                        |
-|------------------------|----------------------------------------------------|
-| `LogOperationsViewer`  | Componente principale completo                     |
-| `LogQueryBuilder`      | Query builder a gruppi logici (AND/OR/NOT)        |
-| `LogDetailModal`       | Modal dettaglio con Stack a 2 livelli e JSON viewer|
-| `LogStatsBar`          | Barra KPI con statistiche rapide                   |
+| Componente            | Descrizione                                         |
+| --------------------- | --------------------------------------------------- |
+| `LogOperationsViewer` | Componente principale completo                      |
+| `LogQueryBuilder`     | Query builder a gruppi logici (AND/OR/NOT)          |
+| `LogDetailModal`      | Modal dettaglio con Stack a 2 livelli e JSON viewer |
+| `LogStatsBar`         | Barra KPI con statistiche rapide                    |
 
 ---
 
@@ -264,52 +261,6 @@ Il middleware rileva automaticamente transazioni DB lasciate aperte:
 
 ---
 
-## Upgrade da installazioni esistenti
-
-Se hai già la vecchia tabella `logoperazionis`, imposta nel `.env`:
-
-```env
-LOG_OPERATIONS_TABLE=logoperazionis
-```
-
-La migrazione di upgrade `2026_01_01_000001_upgrade_logoperazionis_table.php` aggiungerà automaticamente le nuove colonne (`user_type`, `stack_trace`, `custom_traces`, `duration_ms`, `transaction_status`, ecc.) senza perdere i dati esistenti.
-
----
-
-## Pubblicazione su Packagist e Gestione Tag
-
-Per pubblicare il pacchetto su **Packagist** e renderlo disponibile per l'installazione tramite Composer:
-
-### 1. Tag di ricerca (Keywords)
-Nel `composer.json` sono configurati tutti i tag per l'indicizzazione:
-`laravel`, `log`, `logging`, `operations`, `audit`, `audit-log`, `activity-log`, `http-logger`, `middleware`, `stack-trace`, `tracing`, `transactions`, `monitoring`, `vue`, `vue3`, `dashboard`, `viewer`.
-
-### 2. Creazione del repository Git e rilascio versione (Git Tags)
-Packagist rileva le versioni e i rilasci del pacchetto basandosi sui tag Git (Semantic Versioning `vX.Y.Z`):
-
-```bash
-# Inizializza il repository (se non ancora presente)
-git init
-git add .
-git commit -m "feat: initial release of salvatorecervone/logoperations"
-
-# Crea il tag di versione per Packagist
-git tag -a v1.0.0 -m "Release v1.0.0 - Tracciamento HTTP, transazioni, stack a 2 livelli e Vue 3"
-
-# Collega il repository remoto (es. GitHub/GitLab) e invia codice e tag
-git remote add origin https://github.com/SalvatoreCervone/logoperations.git
-git branch -M main
-git push -u origin main --tags
-```
-
-### 3. Registrazione su Packagist
-1. Accedi a [packagist.org](https://packagist.org)
-2. Clicca su **Submit** e incolla l'URL del tuo repository Git
-3. Configura il webhook GitHub/GitLab per gli aggiornamenti automatici a ogni nuovo commit/tag
-
----
-
 ## Licenza
 
 MIT
-
