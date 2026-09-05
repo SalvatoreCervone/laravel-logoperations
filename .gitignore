@@ -1,0 +1,50 @@
+# Composer & Dipendenze PHP
+/vendor/
+composer.lock
+
+# Node / NPM / Frontend
+/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+
+# Build & Cache
+/dist/
+.phpunit.cache/
+.phpunit.result.cache
+/coverage/
+.php-cs-fixer.cache
+.php_cs.cache
+
+# Configurazione Ambiente & Segreti
+.env
+.env.backup
+.env.*
+!.env.example
+
+# IDE & Editor
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Sistema Operativo
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Log e file temporanei
+*.log
+*.tmp
+*.bak
+
+FASI_IMPLEMENTAZIONE.md
