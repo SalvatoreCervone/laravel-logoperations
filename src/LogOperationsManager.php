@@ -51,16 +51,77 @@ class LogOperationsManager
     }
 
     /**
-     * Esegue un callable tracciandone l'esecuzione e la durata.
+     * Esegue e traccia un metodo applicativo o callable, misurandone la durata
+     * e registrando classe, metodo reale, file e riga esatti per lo stack trace.
      *
-     * @template T
-     * @param string $label Etichetta descrittiva dell'operazione
-     * @param callable(): T $callback Funzione da eseguire
-     * @return T Il valore di ritorno del callable
+     * Firme supportate:
+     * 1. trace([$object, 'methodName'], callable $callback, ?string $label = null)
+     * 2. trace('Class@methodName', callable $callback, ?string $label = null)
+     * 3. trace('Class::methodName', callable $callback, ?string $label = null)
+     * 4. trace('label', callable $callback)
+     *
+     * @param mixed $target Callable, array [object, 'method'], string 'Class@method' o string label
+     * @param callable $callback Funzione da eseguire
+     * @param string|null $label Etichetta descrittiva opzionale
+     * @return mixed Risultato del callback
      */
-    public function trace(string $label, callable $callback): mixed
+    public function trace(mixed $target, callable $callback, ?string $label = null): mixed
     {
         $caller = $this->findCaller();
+        $targetClass = $caller['class'] ?? null;
+        $targetFunction = $caller['function'] ?? null;
+        $targetFile = $caller['file'] ?? null;
+        $targetLine = $caller['line'] ?? null;
+        $targetLabel = $label;
+
+        // Caso 1: Array [$object, 'methodName'] o [Class::class, 'methodName']
+        if (is_array($target) && count($target) === 2 && is_string($target[1])) {
+            $cls = is_object($target[0]) ? get_class($target[0]) : (string) $target[0];
+            $mth = $target[1];
+            $targetClass = $cls;
+            $targetFunction = $mth;
+            $targetLabel = $label ?: $mth;
+
+            if (class_exists($cls) && method_exists($cls, $mth)) {
+                try {
+                    $ref = new \ReflectionMethod($cls, $mth);
+                    $targetFile = $ref->getFileName();
+                    $targetLine = $ref->getStartLine();
+                } catch (\Throwable $e) {}
+            }
+        }
+        // Caso 2: Stringa "Class@method" o "Class::method"
+        elseif (is_string($target) && (str_contains($target, '@') || str_contains($target, '::'))) {
+            $delimiter = str_contains($target, '@') ? '@' : '::';
+            [$cls, $mth] = explode($delimiter, $target, 2);
+            $targetClass = $cls;
+            $targetFunction = $mth;
+            $targetLabel = $label ?: $mth;
+
+            if (class_exists($cls) && method_exists($cls, $mth)) {
+                try {
+                    $ref = new \ReflectionMethod($cls, $mth);
+                    $targetFile = $ref->getFileName();
+                    $targetLine = $ref->getStartLine();
+                } catch (\Throwable $e) {}
+            }
+        }
+        // Caso 3: Stringa semplice (label o nome metodo)
+        elseif (is_string($target)) {
+            $targetLabel = $target;
+            // Se la stringa è un identificatore PHP valido senza spazi e il chiamante ha questo metodo
+            if (preg_match('/^[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*$/', $target)) {
+                if ($targetClass && method_exists($targetClass, $target)) {
+                    $targetFunction = $target;
+                    try {
+                        $ref = new \ReflectionMethod($targetClass, $target);
+                        $targetFile = $ref->getFileName();
+                        $targetLine = $ref->getStartLine();
+                    } catch (\Throwable $e) {}
+                }
+            }
+        }
+
         $start = microtime(true);
         $error = null;
 
@@ -71,11 +132,11 @@ class LogOperationsManager
             throw $e;
         } finally {
             $this->traces[] = [
-                'label' => $label,
-                'file' => $caller['file'] ?? null,
-                'line' => $caller['line'] ?? null,
-                'class' => $caller['class'] ?? null,
-                'function' => $caller['function'] ?? null,
+                'label' => $targetLabel ?: $targetFunction,
+                'file' => $targetFile,
+                'line' => $targetLine,
+                'class' => $targetClass,
+                'function' => $targetFunction,
                 'duration_ms' => round((microtime(true) - $start) * 1000, 2),
                 'error' => $error,
                 'timestamp' => $start,

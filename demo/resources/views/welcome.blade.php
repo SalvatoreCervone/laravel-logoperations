@@ -632,7 +632,13 @@
             transform: scale(1.15);
         }
 
-        [data-tooltip] {
+        /* I pulsanti e gli elementi cliccabili mantengono sempre il cursore a mano */
+        button, .sim-btn, .tab-btn, a, select, [role="button"] {
+            cursor: pointer !important;
+        }
+
+        /* Solo l'icona informativa mostra il cursore di aiuto */
+        .info-pill {
             cursor: help;
         }
 
@@ -1282,22 +1288,31 @@
 
                     <!-- Stack Trace a 2 Livelli -->
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <h4 style="margin: 0;">
+                        <h4 style="margin: 0; display: flex; align-items: center; gap: 8px;">
                             Analisi Chiamate Stack Trace 
-                            <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">
+                            <span v-if="hasVendorFrames" style="font-size: 11px; color: var(--text-muted); font-weight: normal;">
                                 (Vista: <strong :style="{ color: stackViewMode === 'core' ? '#10b981' : '#38bdf8' }">@{{ stackViewMode === 'core' ? 'Solo Codice Core (app/)' : 'Stack Completo (Vendor)' }}</strong>)
                             </span>
+                            <span v-else style="font-size: 11px; color: #10b981; font-weight: normal;">
+                                (Livello salvato: <strong>Solo Codice Core</strong> — frame vendor esclusi a monte)
+                            </span>
                         </h4>
-                        <button class="sim-btn" :class="stackViewMode === 'core' ? 'btn-info' : 'btn-success'" style="padding: 4px 12px; font-size: 11px;" @click="stackViewMode = stackViewMode === 'core' ? 'full' : 'core'">
-                            @{{ stackViewMode === 'core' ? '🔍 Passa a Stack Completo (Vendor)' : '🎯 Passa a Solo Codice Core' }}
-                        </button>
+                        <div>
+                            <button v-if="hasVendorFrames" class="sim-btn" :class="stackViewMode === 'core' ? 'btn-info' : 'btn-success'" style="padding: 4px 12px; font-size: 11px;" @click="stackViewMode = stackViewMode === 'core' ? 'full' : 'core'">
+                                @{{ stackViewMode === 'core' ? '🔍 Passa a Stack Completo (Vendor)' : '🎯 Passa a Solo Codice Core' }}
+                            </button>
+                            <span v-else style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500;">
+                                🛡️ Regola Rotta: Solo Core (Vendor non catturato)
+                            </span>
+                        </div>
                     </div>
                     <div class="stack-tree">
                         <div v-for="(frame, idx) in displayedStackTrace" :key="idx" :class="['stack-item', { core: frame.is_core }]">
                             <span>#@{{ idx }} </span>
-                            <span style="color: #38bdf8;">@{{ frame.class }}@{{ frame.type }}@{{ frame.function }}()</span>
+                            <span style="color: #38bdf8; font-weight: 600;">@{{ frame.class }}@{{ frame.type }}@{{ frame.function }}()</span>
                             <span v-if="frame.is_core" class="core-badge">CORE</span>
-                            <div style="color: var(--text-muted); font-size: 11px;">@{{ frame.file }}:@{{ frame.line }}</div>
+                            <span v-if="frame.label && frame.label !== frame.function" style="color: var(--text-muted); font-size: 11px; margin-left: 8px; font-style: italic;">// @{{ frame.label }}</span>
+                            <div style="color: var(--text-muted); font-size: 11px; font-family: monospace;">@{{ frame.file }}:@{{ frame.line }}</div>
                         </div>
                         <div v-if="!displayedStackTrace.length" style="color: var(--text-muted); padding: 12px; line-height: 1.6;">
                             <div v-if="stackViewMode === 'core'">
@@ -1425,6 +1440,11 @@
                         return activeModalLog.value.stack_trace.filter(f => f.is_core);
                     }
                     return activeModalLog.value.stack_trace;
+                });
+
+                const hasVendorFrames = computed(() => {
+                    if (!activeModalLog.value || !activeModalLog.value.stack_trace) return false;
+                    return activeModalLog.value.stack_trace.some(f => !f.is_core);
                 });
 
                 async function fetchLogs() {
@@ -1663,7 +1683,7 @@
                 return {
                     currentTab, logs, routes, classes, activeSessions, usersList, selectedUserId,
                     targetUserId, userDuration, simulating, lastSimResult, routeFilter,
-                    filteredRoutes, activeModalLog, stackViewMode, displayedStackTrace, stats,
+                    filteredRoutes, activeModalLog, stackViewMode, displayedStackTrace, hasVendorFrames, stats,
                     activeQuickFilter, filterStatus, filterUser, filterVerb, filterText,
                     filterSlow, filterUnfinishedTx, filterOnlyErrors, hasActiveFilters,
                     setQuickFilter, onFilterChange, resetAllFilters, debounceFetchLogs,
@@ -1721,18 +1741,34 @@
                 activeEl = null;
             }
 
+            let tipTimer = null;
+
+            function scheduleTip(target) {
+                clearTimeout(tipTimer);
+                tipTimer = setTimeout(() => showTip(target), 200);
+            }
+
+            function cancelTip() {
+                clearTimeout(tipTimer);
+                hideTip();
+            }
+
             document.addEventListener('mouseover', (e) => {
                 const target = e.target.closest ? e.target.closest('[data-tooltip]') : null;
                 if (target) {
-                    showTip(target);
+                    scheduleTip(target);
                 }
             }, true);
 
             document.addEventListener('mouseout', (e) => {
                 const target = e.target.closest ? e.target.closest('[data-tooltip]') : null;
                 if (target && target === activeEl) {
-                    hideTip();
+                    cancelTip();
                 }
+            }, true);
+
+            document.addEventListener('click', () => {
+                cancelTip();
             }, true);
         })();
     </script>

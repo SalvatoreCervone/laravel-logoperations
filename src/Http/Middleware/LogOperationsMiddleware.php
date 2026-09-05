@@ -136,8 +136,8 @@ class LogOperationsMiddleware
                 ];
             }
 
-            // Stack trace a 2 livelli
-            $stackTrace = $this->captureStack($response, $statusCode, $route, $customTraces);
+            // Stack trace a 2 livelli calibrato sul livello di tracciamento
+            $stackTrace = $this->captureStack($response, $statusCode, $route, $customTraces, $ruleEvaluation['stack_level'] ?? null);
 
             // Salvataggio del record di log
             $logData = [
@@ -340,26 +340,41 @@ class LogOperationsMiddleware
     |--------------------------------------------------------------------------
     */
 
-    protected function captureStack(Response $response, int $statusCode, $route = null, ?array $customTraces = null): ?array
+    protected function captureStack(Response $response, int $statusCode, $route = null, ?array $customTraces = null, ?string $stackLevel = null): ?array
     {
         if (!$this->stackTracer->isEnabled()) {
             return null;
         }
 
-        // Se configurato solo su errori, verifica lo status
-        if ($this->stackTracer->isOnlyOnError() && $statusCode < 400) {
+        $level = $stackLevel ?: config('logoperations.stack_trace.default_view', 'core');
+
+        // Se il livello impostato è 'base':
+        // non memorizziamo alcuno stack su risposte normali 200 OK (massime prestazioni e zero overhead).
+        // Se c'è un errore (>= 400), salviamo comunque lo stack dell'errore.
+        if ($level === 'base' && $statusCode < 400 && !isset($response->exception)) {
+            return null;
+        }
+
+        // Se configurato globalmente solo su errori, verifica lo status
+        if ($this->stackTracer->isOnlyOnError() && $statusCode < 400 && !isset($response->exception)) {
             return null;
         }
 
         // Se c'è un'eccezione, usa il suo stack
         $exception = isset($response->exception) ? $response->exception : null;
 
-        if ($exception) {
-            return $this->stackTracer->capture($exception);
+        $frames = $exception
+            ? $this->stackTracer->capture($exception)
+            : $this->stackTracer->captureCurrentStack($route, $customTraces);
+
+        // Se la rotta è impostata su 'core':
+        // memorizziamo ESCLUSIVAMENTE i frame del codice Core applicativo (is_core = true),
+        // eliminando decine di frame vendor e risparmiando fino al 90% di spazio su DB.
+        if ($level === 'core') {
+            $frames = array_values(array_filter($frames, fn($f) => !empty($f['is_core'])));
         }
 
-        // Stack di esecuzione corrente (per richieste di successo)
-        return $this->stackTracer->captureCurrentStack($route, $customTraces);
+        return $frames;
     }
 
     /*

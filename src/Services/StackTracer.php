@@ -102,26 +102,54 @@ class StackTracer
                     'file' => $this->relativePath($file),
                     'line' => $trace['line'] ?? null,
                     'class' => $trace['class'] ?? null,
-                    'function' => $trace['label'] ?: ($trace['function'] ?? 'trace'),
+                    'function' => $trace['function'] ?? 'trace',
+                    'label' => $trace['label'] ?? null,
                     'type' => '->',
                     'is_core' => true,
                 ];
             }
         }
 
-        // 2. Checkpoint e step eseguiti nel codice applicativo
+        // Estraiamo il controller o closure della rotta per referenza
+        $controllerClass = null;
+        $controllerMethod = null;
+        if ($route) {
+            $action = $route->getAction();
+            if (!empty($action['controller']) && is_string($action['controller'])) {
+                $parts = explode('@', $action['controller']);
+                $controllerClass = $parts[0] ?? null;
+                $controllerMethod = $parts[1] ?? '__invoke';
+            }
+        }
+
+        // 2. Step eseguiti in classi applicative esterne al controller
         if (!empty($customTraces['steps'])) {
             foreach (array_reverse($customTraces['steps']) as $step) {
-                if (!empty($step['file'])) {
-                    $coreFrames[] = [
-                        'order' => $order++,
-                        'file' => $this->relativePath($step['file']),
-                        'line' => $step['line'] ?? null,
-                        'class' => $step['class'] ?? null,
-                        'function' => $step['label'] ?: ($step['function'] ?? 'step'),
-                        'type' => '->',
-                        'is_core' => true,
-                    ];
+                if (!empty($step['file']) && !empty($step['class']) && !empty($step['function'])) {
+                    $stepFunc = $step['function'];
+                    // Se lo step è stato invocato dentro il controller stesso, è già rappresentato dal frame del controller
+                    if ($step['class'] === $controllerClass && $stepFunc === $controllerMethod) {
+                        continue;
+                    }
+                    $alreadyPresent = false;
+                    foreach ($coreFrames as $cf) {
+                        if ($cf['class'] === $step['class'] && $cf['function'] === $stepFunc) {
+                            $alreadyPresent = true;
+                            break;
+                        }
+                    }
+                    if (!$alreadyPresent) {
+                        $coreFrames[] = [
+                            'order' => $order++,
+                            'file' => $this->relativePath($step['file']),
+                            'line' => $step['line'] ?? null,
+                            'class' => $step['class'],
+                            'function' => $stepFunc,
+                            'label' => $step['label'] ?? null,
+                            'type' => '->',
+                            'is_core' => true,
+                        ];
+                    }
                 }
             }
         }
