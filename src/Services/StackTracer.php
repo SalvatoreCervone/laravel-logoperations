@@ -80,17 +80,111 @@ class StackTracer
     /**
      * Cattura lo stack di esecuzione dal backtrace corrente
      * (usato quando non c'è un'eccezione, per tracciare il flusso di successo).
+     *
+     * Arricchisce la catena con i metodi applicativi eseguiti, gli step e il controller
+     * della richiesta, così che anche le risposte 200 OK abbiano la visibilità del codice Core.
      */
-    public function captureCurrentStack(): array
+    public function captureCurrentStack($route = null, ?array $customTraces = null): array
     {
         if (!$this->enabled) {
             return [];
         }
 
+        $coreFrames = [];
+        $order = 0;
+
+        // 1. Metodi applicativi tracciati durante la richiesta (es. OrderService, PaymentService)
+        if (!empty($customTraces['traces'])) {
+            foreach (array_reverse($customTraces['traces']) as $trace) {
+                $file = $trace['file'] ?? '';
+                $coreFrames[] = [
+                    'order' => $order++,
+                    'file' => $this->relativePath($file),
+                    'line' => $trace['line'] ?? null,
+                    'class' => $trace['class'] ?? null,
+                    'function' => $trace['label'] ?: ($trace['function'] ?? 'trace'),
+                    'type' => '->',
+                    'is_core' => true,
+                ];
+            }
+        }
+
+        // 2. Checkpoint e step eseguiti nel codice applicativo
+        if (!empty($customTraces['steps'])) {
+            foreach (array_reverse($customTraces['steps']) as $step) {
+                if (!empty($step['file'])) {
+                    $coreFrames[] = [
+                        'order' => $order++,
+                        'file' => $this->relativePath($step['file']),
+                        'line' => $step['line'] ?? null,
+                        'class' => $step['class'] ?? null,
+                        'function' => $step['label'] ?: ($step['function'] ?? 'step'),
+                        'type' => '->',
+                        'is_core' => true,
+                    ];
+                }
+            }
+        }
+
+        // 3. Controller o Closure che ha gestito la richiesta
+        if ($route) {
+            $action = $route->getAction();
+            if (!empty($action['controller']) && is_string($action['controller'])) {
+                $parts = explode('@', $action['controller']);
+                $class = $parts[0] ?? null;
+                $method = $parts[1] ?? '__invoke';
+                $file = null;
+                $line = null;
+                if ($class && class_exists($class)) {
+                    try {
+                        $ref = new \ReflectionMethod($class, $method);
+                        $file = $ref->getFileName();
+                        $line = $ref->getStartLine();
+                    } catch (\Throwable $e) {}
+                }
+                $coreFrames[] = [
+                    'order' => $order++,
+                    'file' => $file ? $this->relativePath($file) : null,
+                    'line' => $line,
+                    'class' => $class,
+                    'function' => $method,
+                    'type' => '->',
+                    'is_core' => true,
+                ];
+            } elseif (!empty($action['uses']) && $action['uses'] instanceof \Closure) {
+                try {
+                    $ref = new \ReflectionFunction($action['uses']);
+                    $coreFrames[] = [
+                        'order' => $order++,
+                        'file' => $this->relativePath($ref->getFileName()),
+                        'line' => $ref->getStartLine(),
+                        'class' => 'Closure',
+                        'function' => '{closure}',
+                        'type' => '::',
+                        'is_core' => true,
+                    ];
+                } catch (\Throwable $e) {}
+            }
+        }
+
+        // 4. Framework stack dal backtrace del middleware
         $rawTrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, $this->maxFrames + 20);
         $rawTrace = $this->stripInternalFrames($rawTrace);
+        $frameworkFrames = $this->processFrames($rawTrace);
 
-        return $this->processFrames($rawTrace);
+        // Unisci: prima i frame applicativi Core eseguiti, poi la catena del framework
+        $allFrames = [];
+        $idx = 0;
+        foreach ($coreFrames as $f) {
+            $f['order'] = $idx++;
+            $allFrames[] = $f;
+        }
+        foreach ($frameworkFrames as $f) {
+            $f['order'] = $idx++;
+            $allFrames[] = $f;
+        }
+
+        return array_slice($allFrames, 0, $this->maxFrames);
     }
 
     /**

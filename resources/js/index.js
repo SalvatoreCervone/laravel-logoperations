@@ -16,6 +16,7 @@ import LogOperationsViewer from './components/LogOperationsViewer.vue'
 import LogQueryBuilder from './components/LogQueryBuilder.vue'
 import LogDetailModal from './components/LogDetailModal.vue'
 import LogStatsBar from './components/LogStatsBar.vue'
+import LogTrackingStudio from './components/LogTrackingStudio.vue'
 
 // Export nominali per import selettivo
 export {
@@ -23,6 +24,7 @@ export {
   LogQueryBuilder,
   LogDetailModal,
   LogStatsBar,
+  LogTrackingStudio,
 }
 
 // Export default come plugin Vue
@@ -32,5 +34,6 @@ export default {
     app.component('LogQueryBuilder', LogQueryBuilder)
     app.component('LogDetailModal', LogDetailModal)
     app.component('LogStatsBar', LogStatsBar)
+    app.component('LogTrackingStudio', LogTrackingStudio)
   },
 }

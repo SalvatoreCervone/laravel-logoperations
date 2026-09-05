@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use SalvatoreCervone\LogOperations\Models\OperationLog;
 use SalvatoreCervone\LogOperations\Services\StackTracer;
+use SalvatoreCervone\LogOperations\Services\RuleEngine;
 use SalvatoreCervone\LogOperations\LogOperationsManager;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -29,11 +30,13 @@ class LogOperationsMiddleware
 {
     protected StackTracer $stackTracer;
     protected LogOperationsManager $manager;
+    protected RuleEngine $ruleEngine;
 
-    public function __construct(StackTracer $stackTracer, LogOperationsManager $manager)
+    public function __construct(StackTracer $stackTracer, LogOperationsManager $manager, RuleEngine $ruleEngine)
     {
         $this->stackTracer = $stackTracer;
         $this->manager = $manager;
+        $this->ruleEngine = $ruleEngine;
     }
 
     public function handle(Request $request, Closure $next): Response
@@ -80,7 +83,8 @@ class LogOperationsMiddleware
         | Verifica se questa richiesta deve essere loggata
         |----------------------------------------------------------------------
         */
-        if (!$this->shouldLog($request, $statusCode, $verbo)) {
+        $ruleEvaluation = null;
+        if (!$this->shouldLog($request, $statusCode, $verbo, $ruleEvaluation)) {
             // Cleanup del manager per la prossima richiesta
             $this->manager->flush();
             $this->stackTracer->flushDbCallers();
@@ -109,15 +113,12 @@ class LogOperationsMiddleware
             }
 
             // Utente autenticato (polimorfico)
-            $user = $request->user();
-            $userId = $user ? $user->getKey() : null;
+            $user = $request->user() ?: Auth::user();
+            $userId = $user ? (string) $user->getKey() : null;
             $userType = $user ? get_class($user) : null;
 
             // Errore / Eccezione
             $errorMessage = $this->captureError($response, $statusCode);
-
-            // Stack trace a 2 livelli
-            $stackTrace = $this->captureStack($response, $statusCode);
 
             // Step e trace personalizzati dal codice applicativo
             $customTraces = null;
@@ -134,6 +135,9 @@ class LogOperationsMiddleware
                     'db_callers' => $this->stackTracer->getDbCallers(),
                 ];
             }
+
+            // Stack trace a 2 livelli
+            $stackTrace = $this->captureStack($response, $statusCode, $route, $customTraces);
 
             // Salvataggio del record di log
             $logData = [
@@ -252,8 +256,25 @@ class LogOperationsMiddleware
     |--------------------------------------------------------------------------
     */
 
-    protected function shouldLog(Request $request, int $statusCode, string $verbo): bool
+    protected function shouldLog(Request $request, int $statusCode, string $verbo, ?array &$ruleEvaluation = null): bool
     {
+        $currentPath = $request->path();
+        $apiPrefix = config('logoperations.api_prefix', 'api/logoperations');
+
+        // Esclusione fondamentale anti-loop per le rotte interne del pacchetto
+        if (Str::is([$apiPrefix . '*', 'api/log-operations*'], $currentPath)) {
+            return false;
+        }
+
+        // Valutazione regole dinamiche Zero-Code
+        $ruleEvaluation = $this->ruleEngine->evaluateRequest($request);
+
+        // Se una regola dinamica (o sessione utente live) è attiva, forza il log
+        if ($ruleEvaluation['should_log']) {
+            return true;
+        }
+
+        // Altrimenti applica i filtri di configurazione standard:
         // Verifica codici di stato esclusi
         $excludedCodes = config('logoperations.excluded_status_codes', []);
         if (in_array($statusCode, $excludedCodes)) {
@@ -268,9 +289,8 @@ class LogOperationsMiddleware
             }
         }
 
-        // Verifica rotte escluse (anti-loop e pattern configurabili)
+        // Verifica rotte escluse
         $excludedRoutes = config('logoperations.excluded_routes', []);
-        $currentPath = $request->path();
         foreach ($excludedRoutes as $pattern) {
             if (Str::is($pattern, $currentPath)) {
                 return false;
@@ -320,7 +340,7 @@ class LogOperationsMiddleware
     |--------------------------------------------------------------------------
     */
 
-    protected function captureStack(Response $response, int $statusCode): ?array
+    protected function captureStack(Response $response, int $statusCode, $route = null, ?array $customTraces = null): ?array
     {
         if (!$this->stackTracer->isEnabled()) {
             return null;
@@ -339,7 +359,7 @@ class LogOperationsMiddleware
         }
 
         // Stack di esecuzione corrente (per richieste di successo)
-        return $this->stackTracer->captureCurrentStack();
+        return $this->stackTracer->captureCurrentStack($route, $customTraces);
     }
 
     /*

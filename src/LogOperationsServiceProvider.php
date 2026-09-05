@@ -28,12 +28,23 @@ class LogOperationsServiceProvider extends ServiceProvider
         });
 
         // Registrazione singleton del servizio LogOperations
-        $this->app->singleton('logoperations', function ($app) {
+        $this->app->singleton(LogOperationsManager::class, function ($app) {
             return new LogOperationsManager(
                 $app->make(StackTracer::class)
             );
         });
-        $this->app->alias('logoperations', 'log-operations');
+        $this->app->alias(LogOperationsManager::class, 'logoperations');
+        $this->app->alias(LogOperationsManager::class, 'log-operations');
+
+        // Registrazione dei servizi Zero-Code Tracking Studio
+        $this->app->singleton(\SalvatoreCervone\LogOperations\Services\RuleEngine::class);
+        $this->app->singleton(\SalvatoreCervone\LogOperations\Services\AppScanner::class);
+        $this->app->singleton(\SalvatoreCervone\LogOperations\Services\MethodInterceptor::class, function ($app) {
+            return new \SalvatoreCervone\LogOperations\Services\MethodInterceptor(
+                $app,
+                $app->make(\SalvatoreCervone\LogOperations\Services\RuleEngine::class)
+            );
+        });
     }
 
     /**
@@ -70,5 +81,12 @@ class LogOperationsServiceProvider extends ServiceProvider
         $router = $this->app->make(Router::class);
         $router->aliasMiddleware('log.operations', LogOperationsMiddleware::class);
         $router->aliasMiddleware('logoperations', LogOperationsMiddleware::class);
+
+        // Attivazione dei proxy per i metodi/servizi tracciati dinamicamente
+        try {
+            $this->app->make(\SalvatoreCervone\LogOperations\Services\MethodInterceptor::class)->registerActiveInterceptors();
+        } catch (\Throwable $e) {
+            // Ignora se il database o le tabelle non sono ancora pronte durante migrazioni iniziali
+        }
     }
 }

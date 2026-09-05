@@ -32,6 +32,19 @@ $routeGroup = function () {
     // Dettaglio singolo log
     Route::get('/{id}', [LogOperationsController::class, 'show'])
         ->where('id', '[0-9]+');
+
+    // Rotte Zero-Code Tracking Studio
+    Route::prefix('studio')->group(function () {
+        Route::get('/routes', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'routesDiscovery']);
+        Route::get('/classes', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'classesDiscovery']);
+        Route::get('/rules', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'getRules']);
+        Route::post('/rules', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'saveRule']);
+        Route::patch('/rules/{id}/toggle', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'toggleRule']);
+        Route::delete('/rules/{id}', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'deleteRule']);
+        Route::get('/users', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'searchUsers']);
+        Route::post('/user-session', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'startUserSession']);
+        Route::delete('/user-session/{id}', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'stopUserSession']);
+    });
 };
 
 $prefix = config('logoperations.api_prefix', 'api/logoperations');

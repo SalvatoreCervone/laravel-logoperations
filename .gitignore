@@ -1,6 +1,8 @@
 # Composer & Dipendenze PHP
 /vendor/
+/demo/vendor/
 composer.lock
+/demo/composer.lock
 
 # Node / NPM / Frontend
 /node_modules/

@@ -29,6 +29,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Nome Tabella Regole Dinamiche
+    |--------------------------------------------------------------------------
+    |
+    | Tabella per la persistenza delle regole di tracciamento Zero-Code.
+    |
+    */
+
+    'rules_table_name' => env('LOG_OPERATIONS_RULES_TABLE', 'log_operazioni_regole'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Connessione Database Dedicata
     |--------------------------------------------------------------------------
     |
@@ -127,6 +138,7 @@ return [
         // viene classificato come is_core = true
         'project_paths' => [
             'app/',
+            'routes/',
         ],
 
         // Percorsi da escludere dallo stack (anche dal livello Full)
@@ -195,6 +207,9 @@ return [
         'card_number',
         'credit_card',
         'cvv',
+        'numero_carta',
+        'cvv_sicurezza',
+        'card_token',
         'api_key',
         'api_secret',
     ],

@@ -37,7 +37,7 @@ class LogOperationsManager
      */
     public function step(string $label, array $context = []): void
     {
-        $caller = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2)[1] ?? [];
+        $caller = $this->findCaller();
 
         $this->steps[] = [
             'label' => $label,
@@ -60,7 +60,7 @@ class LogOperationsManager
      */
     public function trace(string $label, callable $callback): mixed
     {
-        $caller = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2)[1] ?? [];
+        $caller = $this->findCaller();
         $start = microtime(true);
         $error = null;
 
@@ -83,6 +83,41 @@ class LogOperationsManager
         }
 
         return $result;
+    }
+
+    /**
+     * Identifica il primo frame dello stack che appartiene al codice chiamante,
+     * saltando la Facade di Laravel e le classi interne del package.
+     */
+    protected function findCaller(): array
+    {
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10);
+        $callSite = null;
+
+        for ($i = 0; $i < count($trace); $i++) {
+            $class = $trace[$i]['class'] ?? '';
+            if (empty($class) 
+                || str_starts_with($class, 'Illuminate\\Support\\Facades')
+                || str_starts_with($class, 'SalvatoreCervone\\LogOperations')
+            ) {
+                if (!empty($trace[$i]['file'])) {
+                    $callSite = [
+                        'file' => $trace[$i]['file'],
+                        'line' => $trace[$i]['line'] ?? null,
+                    ];
+                }
+                continue;
+            }
+
+            return [
+                'file' => $callSite['file'] ?? ($trace[$i]['file'] ?? null),
+                'line' => $callSite['line'] ?? ($trace[$i]['line'] ?? null),
+                'class' => $trace[$i]['class'] ?? null,
+                'function' => $trace[$i]['function'] ?? null,
+            ];
+        }
+
+        return $trace[1] ?? [];
     }
 
     /**

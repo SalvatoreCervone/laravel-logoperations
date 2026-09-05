@@ -17,6 +17,12 @@ const emit = defineEmits(['update:groups', 'search', 'add-group', 'remove-group'
 const operatoreGruppoOptions = ['AND', 'OR', 'NOT']
 const operatoreCampiOptions = ['AND', 'OR']
 
+const availableHttpCodes = computed(() => {
+  const defaults = [200, 201, 400, 401, 403, 404, 422, 500, 502, 503]
+  const combined = Array.from(new Set([...(props.httpCodes || []), ...defaults]))
+  return combined.sort((a, b) => a - b)
+})
+
 function updateGroup(index, field, value) {
   const updated = [...props.groups]
   updated[index] = { ...updated[index], [field]: value }
@@ -158,7 +164,7 @@ function handleSearch() {
             <label>Codici HTTP</label>
             <div class="qb-http-codes">
               <button
-                v-for="code in httpCodes"
+                v-for="code in availableHttpCodes"
                 :key="code"
                 :class="['qb-http-chip', {
                   active: (group.codicehttp || []).includes(code),

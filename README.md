@@ -1,26 +1,35 @@
 # Log Operations - Pacchetto Laravel + Vue 3
 
-Pacchetto Composer Laravel per il **tracciamento automatico delle operazioni HTTP** con:
-
-- 🔐 **Supporto utente polimorfico** (`morphTo`) per qualsiasi modello autenticabile
-- 🔄 **Gestione transazioni pendenti** — rollback automatico di transazioni non chiuse
-- 📚 **Stack trace a 2 livelli** — Livello 1 (solo codice core app/) e Livello 2 (stack completo con Laravel/vendor)
-- 🎛️ **Middleware configurabile** per tutti i verbi HTTP (o solo specifici)
-- 🛡️ **Mascheramento automatico** di campi sensibili (password, token, ecc.)
-- ⏱️ **Misurazione della durata** di ogni richiesta (ms)
-- 🖥️ **Componente Vue 3 moderno** con KPI, query builder avanzato (AND/OR/NOT) e visualizzatore stack interattivo
+Pacchetto Composer Laravel per il **tracciamento, monitoraggio e analisi delle operazioni applicative** con gestione intelligente delle transazioni database, stack trace a 2 livelli e **Centro di Controllo Zero-Code (Tracking Studio)** per attivare i log senza modificare codice.
 
 ---
 
-## Installazione
+## 🚀 Caratteristiche Principali
 
-### 1. Aggiungere il pacchetto
+- 🎛️ **Centro di Controllo Zero-Code (Tracking Studio)**:
+  - 🗺️ **Studio Rotte**: scansione automatica delle rotte web e API con attivazione/disattivazione permanente a 1 click (ON/OFF) e selezione del livello di dettaglio.
+  - ⚙️ **Studio Funzioni**: scansione delle classi di servizio in `app/` e intercettazione dinamica dei metodi PHP (parametri, durata in ms, eccezioni) via Service Container senza modificare i file sorgente.
+  - 👤 **Monitor Utente Live a Tempo**: tracciamento mirato di un singolo utente per una finestra temporale (5, 15, 30, 60 minuti) con countdown live e disattivazione automatica, ideale per l'assistenza clienti.
+- 🔐 **Supporto Utente Polimorfico** (`nullableMorphs('user')`): supporta qualsiasi modello autenticabile (`User`, `Admin`, `Customer`, ecc.).
+- 🔄 **Rollback Ciclico Transazioni**: rileva transazioni SQL rimaste aperte a causa di errori e le annulla automaticamente fino a livello 0, garantendo l'integrità del database.
+- 📚 **Stack Trace a 2 Livelli**:
+  - **🎯 Livello Core**: isola e mostra solo i file del progetto (cartella `app/`), filtrando il rumore del framework.
+  - **🔍 Livello Completo**: visualizza l'intera catena di chiamate incluse librerie vendor e framework.
+- 🛡️ **Mascheramento Dati Sensibili**: offuscamento automatico di password, token, carte di credito e chiavi API.
+- ⏱️ **Misurazione Precisa della Latenza**: durata di ogni chiamata registrata in millisecondi con indicatori di lentezza.
+- 📊 **Dashboard & Registro Log Vue 3**: visualizzatore moderno con statistiche KPI, filtri rapidi, query builder avanzato e drawer laterale di ispezione.
+
+---
+
+## 📦 Installazione
+
+### 1. Includere il pacchetto nel progetto
 
 ```bash
 composer require salvatorecervone/logoperations
 ```
 
-Il ServiceProvider e la Facade vengono registrati automaticamente tramite auto-discovery.
+Il `LogOperationsServiceProvider` e la facade `LogOperations` vengono registrati automaticamente tramite package auto-discovery.
 
 ### 2. Pubblicare configurazione e migrazioni
 
@@ -35,7 +44,11 @@ php artisan vendor:publish --tag=logoperations-migrations
 php artisan migrate
 ```
 
-### 4. Pubblicare i componenti Vue (opzionale)
+Verranno create le tabelle:
+- `log_operazioni`: archivio storico di tutte le operazioni eseguite.
+- `log_operazioni_regole`: regole dinamiche configurate da interfaccia per rotte, metodi e sessioni utente.
+
+### 4. Pubblicare i componenti Vue 3 (opzionale)
 
 ```bash
 php artisan vendor:publish --tag=logoperations-vue
@@ -45,222 +58,238 @@ I componenti verranno copiati in `resources/js/vendor/logoperations/`.
 
 ---
 
-## Configurazione
+## ⚙️ Configurazione
 
-Il file `config/logoperations.php` offre il controllo completo:
+Il file `config/logoperations.php` offre il controllo completo su ogni aspetto:
 
 ```php
 return [
-    // Abilitazione globale
+    // Abilitazione globale del logger
     'enabled' => env('LOG_OPERATIONS_ENABLED', true),
 
-    // Nome tabella (cambiare in 'logoperazionis' per retrocompatibilità)
+    // Nome della tabella principale (default: log_operazioni)
     'table_name' => env('LOG_OPERATIONS_TABLE', 'log_operazioni'),
 
-    // Connessione DB dedicata per isolare i log dalle transazioni app
+    // Connessione database dedicata (opzionale, per isolare i log dal DB applicativo)
     'database_connection' => env('LOG_OPERATIONS_DB_CONNECTION', null),
 
-    // Verbi HTTP monitorati: ['*'] per tutti
+    // Verbi HTTP monitorati: ['*'] per tutti oppure lista specifica ['POST', 'PUT', 'DELETE']
     'allowed_methods' => ['*'],
 
-    // Codici HTTP esclusi dal logging
+    // Codici di stato esclusi dal logging
     'excluded_status_codes' => [422],
 
-    // Rotte escluse (anti-loop)
+    // Rotte escluse (per evitare loop di auto-logging)
     'excluded_routes' => ['api/logoperations*', 'api/log-operations*', 'telescope*'],
 
-    // Stack trace a 2 livelli
+    // Configurazione Stack Trace a 2 livelli
     'stack_trace' => [
         'enabled' => true,
         'only_on_error' => false,
-        'default_view' => 'core',         // 'core' o 'full'
-        'project_paths' => ['app/'],      // Percorsi del codice proprietario
+        'default_view' => 'core',         // 'core' (app/) o 'full' (completo)
+        'project_paths' => ['app/'],      // Cartelle considerate proprietarie
         'max_frames' => 100,
-        'trace_db_callers' => true,       // Traccia l'origine delle query DB
+        'trace_db_callers' => true,
     ],
 
     // Gestione transazioni non terminate
     'transactions' => [
         'manage_unfinished' => true,
-        'rollback_on_error' => true,      // Rollback su HTTP >= 400
-        'commit_on_success' => false,     // false = rollback preventivo anche su successo
+        'rollback_on_error' => true,      // Esegue rollback ciclico su HTTP >= 400
+        'commit_on_success' => false,     // false = rollback di sicurezza anche su successo
         'log_transaction_state' => true,
     ],
 
-    // Campi mascherati automaticamente
-    'mask_fields' => ['password', 'password_confirmation', 'token', 'secret', 'authorization'],
+    // Campi sensibili mascherati automaticamente nei parametri
+    'mask_fields' => ['password', 'password_confirmation', 'token', 'secret', 'authorization', 'credit_card'],
 
-    // Campi ricercabili sull'utente polimorfico
+    // Campi ricercabili per il modello utente
     'user_search_fields' => ['name', 'cognome', 'email'],
 
-    // Nome applicazione per ambienti multi-app
+    // Nome identificativo dell'applicazione (per ambienti multi-app)
     'app_name' => env('LOG_OPERATIONS_APP_NAME', env('APP_NAME', 'laravel')),
 ];
 ```
 
 ---
 
-## Uso del Middleware
+## 🎛️ Centro di Controllo Zero-Code (Tracking Studio)
 
-### Registrazione globale (consigliato)
+Il Tracking Studio consente a operatori, sviluppatori e team di supporto di attivare il tracciamento direttamente dall'interfaccia grafica:
 
-In `app/Http/Kernel.php` (Laravel 10) o `bootstrap/app.php` (Laravel 11+):
+### 1. Studio Rotte (Pagine Web & API)
+* Il sistema interroga `Route::getRoutes()` e genera l'albero completo delle rotte registrate nel progetto (divise per Web, API, Admin).
+* Con un interruttore a un click (**ON / OFF**) è possibile attivare il tracciamento permanente su una specifica rotta.
+* Per ciascuna rotta attiva è possibile selezionare il **Livello di Dettaglio**:
+  * **Base**: salva parametri, IP, durata e status HTTP.
+  * **🎯 Core (Consigliato)**: salva i dati base ed evidenzia solo i file in `app/` nello stack trace.
+  * **🔍 Completo**: include l'intero albero di esecuzione con chiamate interne del framework e dei vendor.
+* Le modifiche sono memorizzate in cache in tempo reale e non richiedono modifiche ai file di routing o nuovi deploy.
 
+### 2. Studio Funzioni & Servizi (Metodi PHP)
+* Scansiona automaticamente le classi di servizio e logica business in `app/`.
+* Cliccando sul toggle di un metodo, il pacchetto registra un **Proxy Dinamico** sul Service Container di Laravel (`MethodInterceptor`).
+* Ogni esecuzione del metodo cattura automaticamente argomenti, tempo impiegato ed eventuali eccezioni sollevate.
+
+### 3. Monitoraggio Utente Live a Tempo
+* Consente di mettere sotto osservazione un utente specifico selezionando la durata desiderata (**5, 15, 30 o 60 minuti**).
+* Durante la sessione, tutte le azioni compiute dall'utente vengono registrate con il massimo livello di dettaglio.
+* Un **countdown live** mostra il tempo residuo, con possibilità di arresto anticipato a 1 click.
+* Scaduti i minuti, il monitoraggio si disattiva da solo a costo zero sulle risorse.
+
+---
+
+## 🚦 Uso del Middleware
+
+### Registrazione Globale (Consigliato)
+
+#### In Laravel 11+ (`bootstrap/app.php`):
 ```php
-// Laravel 10 - Kernel.php
+use SalvatoreCervone\LogOperations\Http\Middleware\LogOperationsMiddleware;
+
+return Application::configure(basePath: dirname(__DIR__))
+    ->withMiddleware(function (Middleware $middleware) {
+        $middleware->append(LogOperationsMiddleware::class);
+    })
+    // ...
+```
+
+#### In Laravel 10 (`app/Http/Kernel.php`):
+```php
 protected $middleware = [
     // ...
     \SalvatoreCervone\LogOperations\Http\Middleware\LogOperationsMiddleware::class,
 ];
-
-// Laravel 11+ - bootstrap/app.php
-->withMiddleware(function (Middleware $middleware) {
-    $middleware->append(
-        \SalvatoreCervone\LogOperations\Http\Middleware\LogOperationsMiddleware::class
-    );
-})
 ```
 
-### Su rotte specifiche (tramite alias)
+### Registrazione su Rotte Singole o Gruppi
+
+Il pacchetto registra l'alias `log.operations`:
 
 ```php
 Route::middleware('log.operations')->group(function () {
-    Route::resource('pippo', PippoController::class);
+    Route::resource('ordini', OrderController::class);
 });
 ```
 
 ---
 
-## Tracciamento Manuale (Step & Trace)
+## 🔍 Tracciamento Manuale (Facade)
 
-All'interno del codice applicativo, puoi registrare checkpoint e tracciare funzioni:
+Se desideri aggiungere checkpoint o tracciare blocchi di codice specifici all'interno dei tuoi Controller o Service:
 
 ```php
 use SalvatoreCervone\LogOperations\Facades\LogOperations;
 
-class PippoController extends Controller
+class OrderController extends Controller
 {
-    public function update(Request $request, Pippo $pippo)
+    public function store(Request $request)
     {
-        // Registra un checkpoint
-        LogOperations::step('Inizio aggiornamento pippo #' . $pippo->id);
+        // Checkpoint manuale
+        LogOperations::step('Inizio validazione ordine');
 
-        // Traccia l'esecuzione di una funzione con durata
-        $risultato = LogOperations::trace('Verifica permessi', function () use ($pippo) {
-            return $this->verificaPermessi($pippo);
+        // Traccia l'esecuzione di un blocco con misurazione automatica della durata
+        $totale = LogOperations::trace('Calcolo totale carrello', function () {
+            return $this->calcolaTotale();
         });
 
-        LogOperations::step('Permessi verificati, procedo al salvataggio');
+        LogOperations::step('Ordine completato con successo');
 
-        $pippo->update($request->validated());
-
-        LogOperations::step('Salvataggio completato');
-
-        return response()->json($pippo);
+        return response()->json(['success' => true, 'totale' => $totale]);
     }
 }
 ```
 
-Tutti gli step e i trace vengono salvati automaticamente nel campo `custom_traces` del log e visualizzati nel componente Vue nella tab "Traces".
+---
+
+## 📡 API REST Incluse
+
+Il pacchetto espone automaticamente i seguenti endpoint REST sotto `/api/logoperations`:
+
+### Consultazione e Analisi Log
+| Metodo | Endpoint | Descrizione |
+| :--- | :--- | :--- |
+| `GET` | `/api/logoperations` | Elenco paginato dei log con filtri combinabili (vedi parametri sotto) |
+| `GET` | `/api/logoperations/{id}` | Dettaglio completo di un log con stack trace |
+| `GET` | `/api/logoperations/stats` | Statistiche aggregate KPI (richieste, errori, latenza) |
+| `GET` | `/api/logoperations/http-codes` | Elenco codici di stato registrati |
+| `GET` | `/api/logoperations/verbs` | Verbi HTTP registrati |
+| `GET` | `/api/logoperations/applications` | Nomi applicazioni registrate |
+
+**Parametri di Filtro supportati da `GET /api/logoperations`:**
+- `status_codes[]`: Codice o array di codici HTTP (es. `500` per soli errori critici, `404`, `200`).
+- `user`: Ricerca su utente: supporta testo (nome/cognome/email), ID numerico esatto o `'guest'` per soli visitatori non autenticati.
+- `has_error`: `1` per isolare tutti gli errori (HTTP >= 400).
+- `has_unfinished_transaction`: `1` per isolare transazioni DB chiuse con Rollback di sicurezza.
+- `min_duration`: Durata minima in ms per individuare richieste lente (es. `1000` per chiamate > 1s).
+- `verb`: Verbo HTTP (`GET`, `POST`, `PUT`, `DELETE`).
+- `text`: Ricerca testuale parziale su rotta, controller/metodo o messaggio di errore/eccezione.
+- `date_from` / `date_to`: Intervallo temporale ISO o formato data.
+- `ip`: Filtro per indirizzo IP client.
+- `per_page`: Elementi per pagina (default 20, max 100).
+
+
+### Gestione Regole Tracking Studio (Zero-Code)
+| Metodo | Endpoint | Descrizione |
+| :--- | :--- | :--- |
+| `GET` | `/api/logoperations/studio/routes` | Mappa di tutte le rotte rilevate con stato log |
+| `GET` | `/api/logoperations/studio/classes` | Albero delle classi e dei metodi applicativi scansionati |
+| `GET` | `/api/logoperations/studio/rules` | Elenco di tutte le regole dinamiche attive |
+| `POST` | `/api/logoperations/studio/rules` | Attiva o aggiorna una regola (rotta o metodo) |
+| `DELETE` | `/api/logoperations/studio/rules/{id}` | Elimina una regola di tracciamento |
+| `POST` | `/api/logoperations/studio/user-session` | Avvia il monitoraggio temporizzato di un utente |
+| `DELETE` | `/api/logoperations/studio/user-session/{id}` | Interrompe anticipatamente una sessione utente |
+| `GET` | `/api/logoperations/studio/users` | Ricerca rapida utenti per nome o email |
 
 ---
 
-## API REST
+## 💻 Integrazione Vue 3
 
-Il pacchetto espone automaticamente le seguenti API sotto `/api/logoperations` (con alias retrocompatibile `/api/log-operations`):
-
-| Metodo | Endpoint                          | Descrizione                            |
-| ------ | --------------------------------- | -------------------------------------- |
-| GET    | `/api/logoperations`              | Lista paginata con filtri              |
-| GET    | `/api/logoperations/{id}`         | Dettaglio singolo log con stack        |
-| GET    | `/api/logoperations/stats`        | Statistiche KPI (errori, durata, ecc.) |
-| GET    | `/api/logoperations/http-codes`   | Codici HTTP registrati                 |
-| GET    | `/api/logoperations/verbs`        | Verbi HTTP registrati                  |
-| GET    | `/api/logoperations/applications` | Applicazioni registrate                |
-
-### Parametri di ricerca (GET)
-
-| Parametro                    | Tipo         | Descrizione                                |
-| ---------------------------- | ------------ | ------------------------------------------ |
-| `user`                       | string       | Ricerca utente (nome, cognome, email)      |
-| `verb` / `verb[]`            | string/array | Verbi HTTP (get, post, put, delete...)     |
-| `status_codes[]`             | array        | Codici HTTP (200, 404, 500...)             |
-| `date_from`                  | datetime     | Data inizio range                          |
-| `date_to`                    | datetime     | Data fine range                            |
-| `ip`                         | string       | Indirizzo IP (ricerca parziale)            |
-| `controller`                 | string       | Controller@metodo (ricerca parziale)       |
-| `app`                        | string       | Nome applicazione                          |
-| `text`                       | string       | Ricerca libera (rotta, errore, ecc.)       |
-| `has_error`                  | boolean      | Solo risposte con errore (>= 400)          |
-| `has_unfinished_transaction` | boolean      | Solo transazioni pendenti rilevate         |
-| `per_page`                   | integer      | Elementi per pagina (default 20, max 100)  |
-| `g`                          | string       | Gruppi ricerca base64 (retrocompatibilità) |
-
----
-
-## Componente Vue 3
-
-### Importazione e uso
+### Utilizzo Componente Completo
 
 ```vue
 <script setup>
-import { LogOperationsViewer } from "./vendor/logoperations";
+import { LogOperationsViewer } from './vendor/logoperations'
 </script>
 
 <template>
-  <LogOperationsViewer api-base="/api/logoperations" :per-page="20" />
+  <LogOperationsViewer
+    api-base="/api/logoperations"
+    :per-page="25"
+  />
 </template>
 ```
 
-### Come plugin globale Vue
+### Componenti Singoli Disponibili
 
-```js
-import LogOperationsPlugin from "./vendor/logoperations";
+| Componente | Descrizione |
+| :--- | :--- |
+| `LogOperationsViewer` | Interfaccia unificata con navigazione tra Registro Log e Tracking Studio |
+| `LogTrackingStudio` | Centro di controllo zero-code (Studio Rotte, Studio Funzioni, Monitor Utente) |
+| `LogQueryBuilder` | Costruttore di query avanzate con gruppi logici AND / OR |
+| `LogDetailModal` | Drawer/modal con ispezione del payload, transazioni e Stack Trace |
+| `LogStatsBar` | Barra riassuntiva dei KPI con tassi di errore e tempi medi |
 
-const app = createApp(App);
-app.use(LogOperationsPlugin);
-app.mount("#app");
+---
+
+## 🧪 Playground & Demo Live Incorporata (`demo/`)
+
+All'interno della cartella `demo/` è presente un'applicazione Laravel pronta all'uso con database SQLite, dati di test (Mario Rossi, Luigi Bianchi) e un simulatore interattivo.
+
+### Avvio della Demo:
+
+```bash
+cd demo
+php artisan serve
 ```
 
-Poi nel template:
-
-```vue
-<LogOperationsViewer />
-```
-
-### Componenti esportati
-
-| Componente            | Descrizione                                         |
-| --------------------- | --------------------------------------------------- |
-| `LogOperationsViewer` | Componente principale completo                      |
-| `LogQueryBuilder`     | Query builder a gruppi logici (AND/OR/NOT)          |
-| `LogDetailModal`      | Modal dettaglio con Stack a 2 livelli e JSON viewer |
-| `LogStatsBar`         | Barra KPI con statistiche rapide                    |
+Apri il browser su `http://localhost:8000`:
+* In testata trovi la **Barra di Simulazione** per generare con 1 click scenari reali (Ordine con successo, Errore 500 con eccezione, Transazione SQL non chiusa, Richiesta lenta).
+* Puoi passare istantaneamente dal **Registro Operazioni** allo **Studio Rotte**, allo **Studio Funzioni** e alla **Sessione Utente Live**.
+* I tooltip interattivi e le guide rapide integrate forniscono spiegazioni chiare su ogni funzionalità.
 
 ---
 
-## Stack Trace a 2 Livelli
+## 📄 Licenza
 
-Il componente Vue include un toggle per visualizzare lo stack delle chiamate:
-
-- **🎯 Solo Codice Core**: mostra solo le funzioni del codice proprietario dell'applicazione (file in `app/`), filtrando tutto il rumore del framework
-- **🔍 Stack Completo**: mostra l'intera catena di esecuzione, incluse le chiamate interne di Laravel, Symfony e package di terze parti
-
-Ogni frame è classificato con un flag `is_core` e nel componente i frame del codice applicativo sono evidenziati con un badge "CORE" e un bordo colorato.
-
----
-
-## Gestione Transazioni
-
-Il middleware rileva automaticamente transazioni DB lasciate aperte:
-
-- **Su errore (HTTP >= 400)**: esegue il rollback ciclico di tutti i livelli per ripulire dati non reali e rilasciare i lock
-- **Su successo con transazione aperta**: comportamento configurabile (`commit_on_success`)
-- Il log viene scritto **dopo** la risoluzione della transazione per non essere revocato
-- Lo stato viene tracciato nel campo `transaction_status` e visualizzato con un badge di avviso nel componente Vue
-
----
-
-## Licenza
-
-MIT
+Distribuito con licenza MIT.

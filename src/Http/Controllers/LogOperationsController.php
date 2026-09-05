@@ -283,10 +283,16 @@ class LogOperationsController extends Controller
         string $metodo,
         string $tableName
     ): void {
-        // Ricerca utente (polimorfica)
+        // Ricerca utente (polimorfica, ospite o ID numerico)
         if ($search) {
-            $query->$metodo(function ($userQuery) use ($search) {
-                $this->applyPolymorphicUserSearch($userQuery, $search);
+            $query->$metodo(function ($userQuery) use ($search, $tableName) {
+                if ($search === 'guest' || $search === '__guest__') {
+                    $userQuery->whereNull($tableName . '.user_id');
+                } elseif (is_numeric($search)) {
+                    $userQuery->where($tableName . '.user_id', $search);
+                } else {
+                    $this->applyPolymorphicUserSearch($userQuery, $search);
+                }
             });
         }
 
@@ -326,11 +332,23 @@ class LogOperationsController extends Controller
 
     protected function applyDirectFilters($query, Request $request, string $tableName): void
     {
-        // Ricerca utente
+        // Ricerca utente (inclusi ospiti non autenticati e ID numerico)
         if ($request->filled('user')) {
-            $query->where(function ($q) use ($request) {
-                $this->applyPolymorphicUserSearch($q, $request->user);
-            });
+            if ($request->user === 'guest' || $request->user === '__guest__') {
+                $query->whereNull($tableName . '.user_id');
+            } elseif (is_numeric($request->user)) {
+                $query->where($tableName . '.user_id', $request->user);
+            } else {
+                $query->where(function ($q) use ($request) {
+                    $this->applyPolymorphicUserSearch($q, $request->user);
+                });
+            }
+        } elseif ($request->filled('user_id')) {
+            if ($request->user_id === 'guest' || $request->user_id === '__guest__') {
+                $query->whereNull($tableName . '.user_id');
+            } else {
+                $query->where($tableName . '.user_id', $request->user_id);
+            }
         }
 
         // Verbo HTTP
@@ -386,6 +404,11 @@ class LogOperationsController extends Controller
         // Solo transazioni pendenti
         if ($request->boolean('has_unfinished_transaction')) {
             $query->whereNotNull($tableName . '.transaction_status');
+        }
+
+        // Durata minima in ms (es. richieste lente > 1000ms)
+        if ($request->filled('min_duration')) {
+            $query->where($tableName . '.duration_ms', '>=', (float) $request->min_duration);
         }
     }
 

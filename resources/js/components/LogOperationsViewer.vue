@@ -14,6 +14,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import LogQueryBuilder from './LogQueryBuilder.vue'
 import LogDetailModal from './LogDetailModal.vue'
 import LogStatsBar from './LogStatsBar.vue'
+import LogTrackingStudio from './LogTrackingStudio.vue'
 
 const props = defineProps({
   apiBase: { type: String, default: '/api/logoperations' },
@@ -24,6 +25,7 @@ const props = defineProps({
 /*  Stato                                                              */
 /* ------------------------------------------------------------------ */
 
+const currentView = ref('logs') // 'logs' | 'studio'
 const logs = ref({ data: [], current_page: 1, last_page: 1, total: 0 })
 const loading = ref(false)
 const showFilters = ref(true)
@@ -45,6 +47,7 @@ const stats = ref({
 const httpCodes = ref([])
 const verbs = ref([])
 const applications = ref([])
+const usersList = ref([])
 
 // Filtri rapidi attivi
 const quickFilter = ref('today')
@@ -62,6 +65,7 @@ const filters = reactive({
   text: '',
   has_error: false,
   has_unfinished_transaction: false,
+  min_duration: '',
 })
 
 // Gruppi di ricerca avanzata (retrocompatibilità)
@@ -99,10 +103,13 @@ const statusRowClass = (code) => {
 }
 
 const hasActiveFilters = computed(() => {
-  return filters.user || filters.verb.length || filters.status_codes.length
+  return !!(
+    filters.user || filters.verb.length || filters.status_codes.length
     || filters.date_from || filters.date_to || filters.ip
     || filters.controller || filters.app || filters.text
     || filters.has_error || filters.has_unfinished_transaction
+    || filters.min_duration
+  )
 })
 
 /* ------------------------------------------------------------------ */
@@ -146,9 +153,13 @@ function applyQuickFilter(preset) {
     date_from: '', date_to: '', ip: '',
     controller: '', app: '', text: '',
     has_error: false, has_unfinished_transaction: false,
+    min_duration: '',
   })
 
   switch (preset) {
+    case 'all':
+      // Lascia filtri vuoti per visualizzare l'intero archivio
+      break
     case 'today':
       filters.date_from = formatDateISO(startOfDay(now))
       filters.date_to = formatDateISO(endOfDay(now))
@@ -161,24 +172,54 @@ function applyQuickFilter(preset) {
       filters.date_from = formatDateISO(new Date(now.getTime() - 7 * 86400000))
       filters.date_to = formatDateISO(now)
       break
+    case 'status_500':
+      filters.status_codes = [500]
+      break
     case 'errors':
       filters.has_error = true
-      filters.date_from = formatDateISO(startOfDay(now))
-      filters.date_to = formatDateISO(endOfDay(now))
+      break
+    case 'slow':
+      filters.min_duration = 1000
+      break
+    case 'guest':
+      filters.user = 'guest'
       break
     case 'mutations':
       filters.verb = ['post', 'put', 'patch', 'delete']
-      filters.date_from = formatDateISO(startOfDay(now))
-      filters.date_to = formatDateISO(endOfDay(now))
       break
     case 'transactions':
       filters.has_unfinished_transaction = true
-      filters.date_from = formatDateISO(startOfDay(now))
-      filters.date_to = formatDateISO(endOfDay(now))
       break
   }
 
-  loadLogs()
+  loadLogs(1)
+  loadStats()
+}
+
+function toggleStatusCode(code) {
+  const num = Number(code)
+  const idx = filters.status_codes.indexOf(num)
+  if (idx >= 0) {
+    filters.status_codes.splice(idx, 1)
+  } else {
+    filters.status_codes.push(num)
+  }
+  quickFilter.value = 'custom'
+  loadLogs(1)
+  loadStats()
+}
+
+function resetFilters() {
+  quickFilter.value = 'all'
+  Object.assign(filters, {
+    user: '', verb: [], status_codes: [],
+    date_from: '', date_to: '', ip: '',
+    controller: '', app: '', text: '',
+    has_error: false, has_unfinished_transaction: false,
+    min_duration: '',
+  })
+  loadLogs(1)
+  loadStats()
 }
 
 /* ------------------------------------------------------------------ */
@@ -211,6 +252,7 @@ async function loadLogs(page = 1) {
       if (filters.text) params.set('text', filters.text)
       if (filters.has_error) params.set('has_error', '1')
       if (filters.has_unfinished_transaction) params.set('has_unfinished_transaction', '1')
+      if (filters.min_duration) params.set('min_duration', filters.min_duration)
     }
 
     const response = await fetch(
@@ -249,6 +291,15 @@ async function loadMetadata() {
     httpCodes.value = await codesRes.json()
     verbs.value = await verbsRes.json()
     applications.value = await appsRes.json()
+
+    // Carica utenti per autocompletamento rapido
+    try {
+      const uRes = await fetch(`${props.apiBase}/studio/users`)
+      if (uRes.ok) {
+        const uData = await uRes.json()
+        usersList.value = uData.data || []
+      }
+    } catch (e) {}
   } catch (e) {
     console.error('[LogOperations] Metadata error:', e)
   }
@@ -394,7 +445,25 @@ onMounted(async () => {
       <h1>Log Operazioni</h1>
     </div>
 
-    <div class="log-ops-header__actions">
+    <!-- MAIN VIEW MODE SWITCHER -->
+    <div class="log-ops-mode-switcher">
+      <button
+        :class="['mode-tab', { active: currentView === 'logs' }]"
+        @click="currentView = 'logs'"
+        title="Visualizza lo storico cronologico di tutte le operazioni registrate"
+      >
+        <span>📊 Registro Operazioni (Storico Log)</span>
+      </button>
+      <button
+        :class="['mode-tab', { active: currentView === 'studio' }]"
+        @click="currentView = 'studio'"
+        title="Pannello senza codice per configurare il tracciamento su rotte, metodi e utenti"
+      >
+        <span>🎛️ Centro Tracciamento (Senza Codice)</span>
+      </button>
+    </div>
+
+    <div v-if="currentView === 'logs'" class="log-ops-header__actions">
       <button
         class="btn btn--outline btn--sm"
         @click="showQueryBuilder = !showQueryBuilder"
@@ -416,6 +485,17 @@ onMounted(async () => {
     </div>
   </div>
 
+  <!-- STUDIO VIEW -->
+  <div v-if="currentView === 'studio'" class="studio-view-container">
+    <LogTrackingStudio
+      :api-base="apiBase"
+      @rule-updated="loadLogs(1)"
+    />
+  </div>
+
+  <!-- LOGS VIEW -->
+  <template v-else>
+
   <!-- KPI STATS BAR -->
   <LogStatsBar :stats="stats" />
 
@@ -423,15 +503,19 @@ onMounted(async () => {
   <div v-if="!showQueryBuilder" class="quick-filters">
     <button
       v-for="qf in [
+        { key: 'all', label: 'Tutti i Log', icon: '📋' },
         { key: 'today', label: 'Oggi', icon: '📅' },
         { key: 'last24h', label: 'Ultime 24h', icon: '🕐' },
         { key: 'last7d', label: 'Ultimi 7gg', icon: '📊' },
-        { key: 'errors', label: 'Solo Errori', icon: '🚨' },
+        { key: 'status_500', label: 'Solo 500', icon: '💥', pillClass: 'quick-filter-btn--danger' },
+        { key: 'errors', label: 'Errori (4xx/500)', icon: '🚨', pillClass: 'quick-filter-btn--warning' },
+        { key: 'slow', label: 'Lente (>1s)', icon: '⏱️', pillClass: 'quick-filter-btn--cyan' },
+        { key: 'transactions', label: 'Rollback DB', icon: '⚡', pillClass: 'quick-filter-btn--purple' },
+        { key: 'guest', label: 'Solo Ospiti', icon: '👤' },
         { key: 'mutations', label: 'Modifiche', icon: '✏️' },
-        { key: 'transactions', label: 'Transazioni', icon: '⚠️' },
       ]"
       :key="qf.key"
-      :class="['quick-filter-btn', { active: quickFilter === qf.key }]"
+      :class="['quick-filter-btn', qf.pillClass, { active: quickFilter === qf.key }]"
       @click="applyQuickFilter(qf.key)"
     >
       <span class="quick-filter-btn__icon">{{ qf.icon }}</span>
@@ -441,22 +525,103 @@ onMounted(async () => {
 
   <!-- DIRECT FILTERS BAR -->
   <div v-if="!showQueryBuilder" class="filters-bar">
-    <div class="filter-group">
-      <label>Utente</label>
-      <input v-model="filters.user" type="text" placeholder="Nome, cognome o email" class="filter-input" @keyup.enter="loadLogs()" />
+    <!-- Utente Esecutore -->
+    <div class="filter-group filter-group--user">
+      <div class="filter-group__header">
+        <label>Utente</label>
+        <button
+          type="button"
+          :class="['filter-badge-toggle', { active: filters.user === 'guest' }]"
+          @click="filters.user = filters.user === 'guest' ? '' : 'guest'; loadLogs(1)"
+          title="Filtra solo visitatori ospiti non autenticati (Guest)"
+        >
+          👤 Solo Ospiti
+        </button>
+      </div>
+      <input
+        v-model="filters.user"
+        type="text"
+        list="log-ops-users-list"
+        placeholder="Nome, email o ID utente..."
+        class="filter-input"
+        @keyup.enter="loadLogs(1)"
+      />
+      <datalist id="log-ops-users-list">
+        <option value="guest">👤 Solo Ospiti (Non autenticati)</option>
+        <option v-for="u in usersList" :key="u.id" :value="u.id">
+          {{ u.name }} ({{ u.email }})
+        </option>
+      </datalist>
     </div>
+
+    <!-- Codice HTTP -->
     <div class="filter-group">
-      <label>IP</label>
-      <input v-model="filters.ip" type="text" placeholder="Indirizzo IP" class="filter-input filter-input--sm" @keyup.enter="loadLogs()" />
+      <div class="filter-group__header">
+        <label>Codice HTTP</label>
+        <button
+          type="button"
+          :class="['filter-badge-toggle filter-badge-toggle--danger', { active: filters.status_codes.includes(500) }]"
+          @click="toggleStatusCode(500)"
+          title="Filtra solo errori server 500"
+        >
+          💥 Solo 500
+        </button>
+      </div>
+      <div class="status-chips">
+        <button
+          v-for="code in [200, 400, 404, 422, 500]"
+          :key="code"
+          type="button"
+          :class="['status-chip', 'status-chip--' + Math.floor(code / 100) + 'xx', { active: filters.status_codes.includes(code) }]"
+          @click="toggleStatusCode(code)"
+          :title="'Filtra HTTP ' + code"
+        >
+          {{ code }}
+        </button>
+      </div>
     </div>
+
+    <!-- Verbi HTTP -->
     <div class="filter-group">
-      <label>Controller</label>
-      <input v-model="filters.controller" type="text" placeholder="Controller@metodo" class="filter-input" @keyup.enter="loadLogs()" />
+      <label>Verbi HTTP</label>
+      <div class="verb-chips">
+        <button
+          v-for="v in ['get', 'post', 'put', 'patch', 'delete']"
+          :key="v"
+          type="button"
+          :class="['verb-chip', verbColors[v], { active: filters.verb.includes(v) }]"
+          @click="toggleVerb(v); loadLogs(1)"
+        >
+          {{ v.toUpperCase() }}
+        </button>
+      </div>
     </div>
+
+    <!-- Rotta / Testo Libero -->
+    <div class="filter-group filter-group--grow">
+      <label>Rotta, Controller o Errore</label>
+      <input
+        v-model="filters.text"
+        type="text"
+        placeholder="Percorso rotta, classe o errore..."
+        class="filter-input"
+        @keyup.enter="loadLogs(1)"
+      />
+    </div>
+
+    <!-- Latenza Minima / Lente -->
     <div class="filter-group">
-      <label>Testo libero</label>
-      <input v-model="filters.text" type="text" placeholder="Rotta, parametri, errore..." class="filter-input" @keyup.enter="loadLogs()" />
+      <label>Latenza Minima</label>
+      <input
+        v-model="filters.min_duration"
+        type="number"
+        placeholder="ms (es. 1000)"
+        class="filter-input filter-input--sm"
+        @keyup.enter="loadLogs(1)"
+      />
     </div>
+
+    <!-- Date Range -->
     <div class="filter-group">
       <label>Da</label>
       <input v-model="filters.date_from" type="datetime-local" class="filter-input filter-input--date" />
@@ -465,38 +630,43 @@ onMounted(async () => {
       <label>A</label>
       <input v-model="filters.date_to" type="datetime-local" class="filter-input filter-input--date" />
     </div>
+
+    <!-- IP & Controller -->
     <div class="filter-group">
-      <label>Verbi</label>
-      <div class="verb-chips">
-        <button
-          v-for="v in ['get', 'post', 'put', 'patch', 'delete']"
-          :key="v"
-          :class="['verb-chip', verbColors[v], { active: filters.verb.includes(v) }]"
-          @click="toggleVerb(v)"
-        >
-          {{ v.toUpperCase() }}
-        </button>
-      </div>
+      <label>IP</label>
+      <input v-model="filters.ip" type="text" placeholder="Indirizzo IP" class="filter-input filter-input--sm" @keyup.enter="loadLogs(1)" />
     </div>
     <div class="filter-group">
-      <label>Codice HTTP</label>
-      <select v-model="filters.status_codes" multiple class="filter-select">
-        <option v-for="c in httpCodes" :key="c" :value="c">{{ c }}</option>
-      </select>
+      <label>Controller</label>
+      <input v-model="filters.controller" type="text" placeholder="Controller@metodo" class="filter-input" @keyup.enter="loadLogs(1)" />
     </div>
     <div class="filter-group">
       <label>App</label>
-      <select v-model="filters.app" class="filter-select">
+      <select v-model="filters.app" class="filter-select" @change="loadLogs(1)">
         <option value="">Tutte</option>
         <option v-for="a in applications" :key="a" :value="a">{{ a }}</option>
       </select>
     </div>
-    <button class="btn btn--primary" @click="loadLogs(); loadStats()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn__icon">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      Cerca
-    </button>
+
+    <!-- Azioni Cerca & Reset -->
+    <div class="filter-actions-group">
+      <button class="btn btn--primary" @click="loadLogs(1); loadStats()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn__icon">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        Cerca
+      </button>
+
+      <button
+        v-if="hasActiveFilters"
+        type="button"
+        class="btn btn--danger-outline"
+        @click="resetFilters"
+        title="Cancella tutti i filtri attivi e mostra tutti i log"
+      >
+        ✖️ Azzera
+      </button>
+    </div>
   </div>
 
   <!-- QUERY BUILDER AVANZATO -->
@@ -525,15 +695,15 @@ onMounted(async () => {
       <table class="log-table">
         <thead>
           <tr>
-            <th class="th--verb">Verbo</th>
-            <th class="th--status">HTTP</th>
-            <th class="th--user">Utente</th>
-            <th class="th--route">Rotta</th>
-            <th class="th--controller">Controller</th>
-            <th class="th--ip">IP</th>
-            <th class="th--duration">Durata</th>
-            <th class="th--date">Data</th>
-            <th class="th--flags">Flags</th>
+            <th class="th--verb" title="Metodo HTTP della chiamata (GET, POST, PUT, DELETE, PATCH)">Verbo</th>
+            <th class="th--status" title="Codice di risposta del server (200 OK, 4xx errore client, 500 errore server)">HTTP</th>
+            <th class="th--user" title="Utente autenticato esecutore dell'operazione">Utente</th>
+            <th class="th--route" title="Indirizzo o endpoint richiesto">Rotta</th>
+            <th class="th--controller" title="Controller e metodo PHP eseguiti da Laravel">Controller</th>
+            <th class="th--ip" title="Indirizzo IP del client richiedente">IP</th>
+            <th class="th--duration" title="Tempo di elaborazione totale impiegato dal server">Durata</th>
+            <th class="th--date" title="Data e ora di registrazione">Data</th>
+            <th class="th--flags" title="Indicatori speciali: 🐛 Errore, ⚡ Rollback DB, 📚 Stack Trace">Flags</th>
           </tr>
         </thead>
         <tbody>
@@ -632,6 +802,7 @@ onMounted(async () => {
     :log="selectedLog"
     @close="showDetail = false; selectedLog = null"
   />
+  </template>
 </div>
 </template>
 
@@ -663,15 +834,56 @@ onMounted(async () => {
   --lo-radius: 10px;
   --lo-radius-sm: 6px;
   --lo-radius-lg: 14px;
-  --lo-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
-  --lo-transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   background: var(--lo-bg);
   color: var(--lo-text);
   padding: 24px;
   min-height: 100vh;
   box-sizing: border-box;
+}
+
+.log-ops-mode-switcher {
+  display: flex;
+  background: var(--lo-surface);
+  padding: 4px;
+  border-radius: 10px;
+  gap: 6px;
+  border: 1px solid var(--lo-border);
+}
+
+.mode-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  color: var(--lo-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mode-tab:hover {
+  color: var(--lo-text);
+}
+
+.mode-tab.active {
+  background: var(--lo-primary);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+}
+
+.studio-view-container {
+  background: var(--lo-surface);
+  border: 1px solid var(--lo-border);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  margin-top: 16px;
 }
 
 /* ------------------------------------------------------------------ */
@@ -790,6 +1002,26 @@ onMounted(async () => {
   border-color: var(--lo-primary);
   color: white;
 }
+.quick-filter-btn--danger.active {
+  background: var(--lo-danger);
+  border-color: #f87171;
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.4);
+}
+.quick-filter-btn--warning.active {
+  background: var(--lo-warning);
+  border-color: #fbbf24;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.4);
+}
+.quick-filter-btn--cyan.active {
+  background: #0891b2;
+  border-color: #22d3ee;
+  box-shadow: 0 2px 10px rgba(8, 145, 178, 0.4);
+}
+.quick-filter-btn--purple.active {
+  background: #9333ea;
+  border-color: #c084fc;
+  box-shadow: 0 2px 10px rgba(147, 51, 234, 0.4);
+}
 
 .quick-filter-btn__icon { font-size: 0.875rem; }
 
@@ -815,12 +1047,95 @@ onMounted(async () => {
   gap: 4px;
 }
 
+.filter-group__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-group--user { min-width: 220px; }
+.filter-group--grow { flex-grow: 1; min-width: 200px; }
+
 .filter-group label {
   font-size: 0.6875rem;
   font-weight: 600;
   color: var(--lo-text-dim);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.filter-badge-toggle {
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: #818cf8;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all var(--lo-transition);
+}
+.filter-badge-toggle:hover { background: var(--lo-primary); color: white; }
+.filter-badge-toggle.active {
+  background: var(--lo-primary);
+  color: white;
+  border-color: #818cf8;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4);
+}
+
+.filter-badge-toggle--danger {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+.filter-badge-toggle--danger:hover { background: var(--lo-danger); color: white; }
+.filter-badge-toggle--danger.active {
+  background: var(--lo-danger);
+  color: white;
+  border-color: #f87171;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.4);
+}
+
+.status-chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.status-chip {
+  padding: 5px 8px;
+  border-radius: var(--lo-radius-sm);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--lo-transition);
+  border: 1px solid var(--lo-border);
+  background: var(--lo-bg);
+  color: var(--lo-text-muted);
+  font-family: inherit;
+}
+.status-chip:hover { border-color: var(--lo-text); color: var(--lo-text); }
+.status-chip.active { color: white; }
+.status-chip--2xx.active { background: var(--lo-success); border-color: #34d399; }
+.status-chip--4xx.active { background: var(--lo-warning); border-color: #fbbf24; }
+.status-chip--5xx.active { background: var(--lo-danger); border-color: #f87171; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.35); }
+
+.filter-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn--danger-outline {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+.btn--danger-outline:hover {
+  background: var(--lo-danger);
+  color: white;
+  border-color: #ef4444;
 }
 
 .filter-input {
@@ -832,11 +1147,12 @@ onMounted(async () => {
   font-size: 0.8125rem;
   min-width: 150px;
   font-family: inherit;
+  color-scheme: dark;
   transition: border-color var(--lo-transition);
 }
 .filter-input:focus { outline: none; border-color: var(--lo-primary); }
-.filter-input--sm { min-width: 110px; }
-.filter-input--date { min-width: 180px; }
+.filter-input--sm { min-width: 100px; }
+.filter-input--date { min-width: 170px; }
 
 .filter-select {
   padding: 7px 12px;
@@ -847,6 +1163,7 @@ onMounted(async () => {
   font-size: 0.8125rem;
   min-width: 120px;
   font-family: inherit;
+  color-scheme: dark;
 }
 .filter-select:focus { outline: none; border-color: var(--lo-primary); }
 
