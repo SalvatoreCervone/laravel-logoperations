@@ -103,6 +103,41 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Campionamento Richieste (Sampling Rate)
+    |--------------------------------------------------------------------------
+    |
+    | Percentuale (da 0 a 100) delle richieste con esito positivo (2xx, 3xx)
+    | da registrare. Gli errori (4xx, 5xx) e le eccezioni vengono SEMPRE
+    | registrati al 100%. Impostare a 100 per registrare tutto.
+    |
+    */
+
+    'sampling_rate' => (int) env('LOG_OPERATIONS_SAMPLING_RATE', 100),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Scrittura Asincrona tramite Coda (Queue) & Resilienza
+    |--------------------------------------------------------------------------
+    |
+    | Se abilitato, il salvataggio dei log viene delegato a un worker di coda,
+    | alleggerendo i server web ad alto volume.
+    | Include fallback automatico (su DB o file di emergenza) in caso di
+    | broker offline e alert email al superamento della soglia di fallimenti.
+    |
+    */
+
+    'queue' => [
+        'enabled' => env('LOG_OPERATIONS_QUEUE_ENABLED', false),
+        'connection' => env('LOG_OPERATIONS_QUEUE_CONNECTION', null),
+        'queue' => env('LOG_OPERATIONS_QUEUE_NAME', 'default'),
+        'tries' => (int) env('LOG_OPERATIONS_QUEUE_TRIES', 3),
+        'backoff' => [10, 30, 60],
+        'failed_jobs_threshold' => (int) env('LOG_OPERATIONS_FAILED_THRESHOLD', 5),
+        'alert_email' => env('LOG_OPERATIONS_ALERT_EMAIL', null),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Prefisso Rotte API
     |--------------------------------------------------------------------------
     |

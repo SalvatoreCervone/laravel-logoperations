@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use SalvatoreCervone\LogOperations\Models\OperationLog;
+use SalvatoreCervone\LogOperations\Jobs\ProcessOperationLog;
 use SalvatoreCervone\LogOperations\Services\StackTracer;
 use SalvatoreCervone\LogOperations\Services\RuleEngine;
 use SalvatoreCervone\LogOperations\LogOperationsManager;
@@ -159,21 +160,70 @@ class LogOperationsMiddleware
                 'transaction_level' => $transactionInfo['level'],
             ];
 
-            OperationLog::create($logData);
+            // Memorizza i dati per la persistenza post-risposta (Terminable Middleware)
+            $request->attributes->set('_logoperations_pending', $logData);
+
+            // Se la scrittura post-risposta è disabilitata esplicitamente, persiste subito in handle
+            if (!config('logoperations.write_after_response', true)) {
+                $this->persistLog($logData, $request);
+                $this->manager->flush();
+                $this->stackTracer->flushDbCallers();
+            }
 
         } catch (\Throwable $e) {
             // Il logging non deve mai bloccare la risposta al client
-            Log::warning('[LogOperations] Errore durante il salvataggio del log: ' . $e->getMessage(), [
+            Log::warning('[LogOperations] Errore durante la preparazione del log: ' . $e->getMessage(), [
                 'exception' => $e->getMessage(),
                 'uri' => $request->getRequestUri(),
             ]);
-        } finally {
-            // Cleanup per la prossima richiesta
-            $this->manager->flush();
-            $this->stackTracer->flushDbCallers();
         }
 
         return $response;
+    }
+
+    /**
+     * Esegue la scrittura dei log dopo l'invio della risposta HTTP al client (Terminable Middleware).
+     */
+    public function terminate(Request $request, Response $response): void
+    {
+        $logData = $request->attributes->get('_logoperations_pending');
+        if (!$logData) {
+            return;
+        }
+
+        try {
+            $this->persistLog($logData, $request);
+        } finally {
+            $request->attributes->remove('_logoperations_pending');
+            $this->manager->flush();
+            $this->stackTracer->flushDbCallers();
+        }
+    }
+
+    /**
+     * Persiste il log su database o lo invia alla coda asincrona con gestione fallback.
+     */
+    protected function persistLog(array $logData, Request $request): void
+    {
+        try {
+            $queueConfig = config('logoperations.queue', []);
+            if (!empty($queueConfig['enabled'])) {
+                try {
+                    ProcessOperationLog::dispatch($logData);
+                } catch (\Throwable $queueException) {
+                    // Fallback immediato su salvataggio sincrono se il broker di coda è offline
+                    Log::warning('[LogOperations] Fallback sincrono: dispatch coda non riuscito (' . $queueException->getMessage() . ').');
+                    OperationLog::create($logData);
+                }
+            } else {
+                OperationLog::create($logData);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[LogOperations] Errore durante la persistenza del log: ' . $e->getMessage(), [
+                'exception' => $e->getMessage(),
+                'uri' => $request->getRequestUri(),
+            ]);
+        }
     }
 
     /*
@@ -309,6 +359,15 @@ class LogOperationsMiddleware
         $excludedRoutes = config('logoperations.excluded_routes', []);
         foreach ($excludedRoutes as $pattern) {
             if (Str::is($pattern, $currentPath)) {
+                return false;
+            }
+        }
+
+        // Gestione campionamento (sampling rate) per risposte con esito positivo (< 400)
+        // Gli errori (status >= 400) vengono SEMPRE tracciati al 100%
+        $samplingRate = (int) config('logoperations.sampling_rate', 100);
+        if ($samplingRate < 100 && $statusCode < 400) {
+            if ($samplingRate <= 0 || mt_rand(1, 100) > $samplingRate) {
                 return false;
             }
         }

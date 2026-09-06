@@ -39,6 +39,7 @@ class LogOperationsServiceProvider extends ServiceProvider
         // Registrazione dei servizi Zero-Code Tracking Studio
         $this->app->singleton(\SalvatoreCervone\LogOperations\Services\RuleEngine::class);
         $this->app->singleton(\SalvatoreCervone\LogOperations\Services\AppScanner::class);
+        $this->app->singleton(\SalvatoreCervone\LogOperations\Services\QueueAlertService::class);
         $this->app->singleton(\SalvatoreCervone\LogOperations\Services\MethodInterceptor::class, function ($app) {
             return new \SalvatoreCervone\LogOperations\Services\MethodInterceptor(
                 $app,
