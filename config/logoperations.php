@@ -16,6 +16,30 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Modalità di Tracciamento
+    |--------------------------------------------------------------------------
+    |
+    | Supporta tre modalità di funzionamento:
+    |
+    | 1. 'selective' (Consigliato con middleware globale):
+    |    Il middleware è inserito a livello globale, ma NON logga nulla di default.
+    |    Traccia SOLO le rotte esplicitamente attivate nel Tracking Studio
+    |    o i gruppi di rotte a cui è applicato l'alias 'log.operations'.
+    |    Ideale per evitare di tracciare tipologiche e consultazioni frequenti.
+    |
+    | 2. 'all' (Tracciamento a tappeto):
+    |    Traccia tutte le rotte che corrispondono ai verbi HTTP consentiti,
+    |    escluse solo quelle in 'excluded_routes'.
+    |    ATTENZIONE: su ambienti di produzione ad alto traffico o con molte
+    |    rotte di lookup (tipologiche), questa modalità comporta un carico
+    |    pesante di memoria e rapido consumo di storage nel database.
+    |
+    */
+
+    'mode' => env('LOG_OPERATIONS_MODE', 'all'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Nome Tabella
     |--------------------------------------------------------------------------
     |
@@ -87,6 +111,36 @@ return [
     */
 
     'api_prefix' => env('LOG_OPERATIONS_API_PREFIX', 'api/logoperations'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Middleware delle Rotte API
+    |--------------------------------------------------------------------------
+    |
+    | Middleware applicati a tutti gli endpoint REST del pacchetto (consultazione
+    | log e Tracking Studio). In produzione è fortemente consigliato proteggere
+    | queste rotte con autenticazione (es. ['api', 'auth:sanctum'] o ['web', 'auth']).
+    |
+    */
+
+    'api_middleware' => ['api'],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Gate di Autorizzazione
+    |--------------------------------------------------------------------------
+    |
+    | Nome del Gate Laravel utilizzato per autorizzare l'accesso agli endpoint
+    | di consultazione e al Tracking Studio. Se impostato, il pacchetto verificherà
+    | Gate::allows($gate, [$request->user()]).
+    |
+    | Se 'allow_in_local' è true, l'accesso è sempre consentito in ambiente 'local'.
+    |
+    */
+
+    'gate' => env('LOG_OPERATIONS_GATE', 'viewLogOperations'),
+
+    'allow_in_local' => env('LOG_OPERATIONS_ALLOW_IN_LOCAL', true),
 
     /*
     |--------------------------------------------------------------------------

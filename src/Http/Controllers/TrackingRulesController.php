@@ -10,12 +10,23 @@ use Illuminate\Support\Facades\Schema;
 use SalvatoreCervone\LogOperations\Models\OperationRule;
 use SalvatoreCervone\LogOperations\Services\AppScanner;
 use SalvatoreCervone\LogOperations\Services\RuleEngine;
+use SalvatoreCervone\LogOperations\Http\Controllers\Concerns\AuthorizesLogOperations;
 
 /**
  * Controller per la gestione delle Regole di Tracciamento Zero-Code.
  */
 class TrackingRulesController extends Controller
 {
+    use AuthorizesLogOperations;
+
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+            $this->authorizeAccess($request);
+            return $next($request);
+        });
+    }
+
     /**
      * Catalogo delle rotte dell'applicazione con stato di monitoraggio.
      */

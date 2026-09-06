@@ -139,9 +139,49 @@ Il Tracking Studio consente a operatori, sviluppatori e team di supporto di atti
 
 ---
 
-## 🚦 Uso del Middleware
+## 🚦 Modalità di Utilizzo del Middleware
 
-### Registrazione Globale (Consigliato)
+Il pacchetto supporta **3 diverse modalità di utilizzo** per adattarsi a qualsiasi architettura applicativa:
+
+---
+
+### 🎛️ Modalità 1: Globale Selettivo (Zero-Code da Pannello) — *Consigliata*
+Registri il middleware a livello globale, ma configuri `'mode' => 'selective'` (in `config/logoperations.php` o `.env` con `LOG_OPERATIONS_MODE=selective`).
+- **Comportamento**: Di default **non logga alcuna rotta**.
+- **Controllo**: Apri il **Tracking Studio** e attivi `[ON]` con 1 click **solo le rotte che ti interessano** (es. ordini, pagamenti, contratti).
+- **Vantaggi**: Zero modifiche ai file di rotta, rotte tipologiche/lookup escluse di default, database sempre leggero e pulito.
+
+---
+
+### 🎯 Modalità 2: Mirato da Codice (Gruppi o Singole Rotte)
+Non registri il middleware globale. Applichi l'alias `log.operations` solo ai gruppi di rotte o risorse business che devono avere una Storyboard:
+
+```php
+// Rotte tipologiche / lookup: NESSUN LOG
+Route::prefix('tipologiche')->group(function () {
+    Route::get('stati-ordine', [LookupController::class, 'orderStatuses']);
+    Route::get('comuni', [LookupController::class, 'cities']);
+});
+
+// Rotte operative di business: MONITORATE per la Storyboard
+Route::middleware('log.operations')->group(function () {
+    Route::resource('ordini', OrderController::class);
+    Route::resource('fatture', InvoiceController::class);
+});
+```
+
+---
+
+### 🌊 Modalità 3: Globale a Tappeto (`mode => 'all'`)
+Registri il middleware globale e mantieni `'mode' => 'all'`. Il sistema intercetta tutte le rotte che corrispondono ai verbi HTTP consentiti, escluse solo quelle in `excluded_routes`.
+
+> [!WARNING]
+> **Attenzione al consumo di memoria e storage:**
+> Su applicazioni reali ad alto traffico o con molteplici chiamate a tabelle di lookup (tipologiche, elenchi statici, polling), la modalità a tappeto comporta un **carico pesante di memoria e un rapido consumo di spazio nel database** dovuto alla serializzazione di parametri e stack trace JSON. Se utilizzi questa modalità, assicurati di escludere opportunamente i prefissi delle tipologiche in `excluded_routes` o di passare alla Modalità 1.
+
+---
+
+### Registrazione del Middleware
 
 #### In Laravel 11+ (`bootstrap/app.php`):
 ```php
@@ -149,6 +189,7 @@ use SalvatoreCervone\LogOperations\Http\Middleware\LogOperationsMiddleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
+        // Registrazione globale (per Modalità 1 o Modalità 3)
         $middleware->append(LogOperationsMiddleware::class);
     })
     // ...
@@ -162,15 +203,6 @@ protected $middleware = [
 ];
 ```
 
-### Registrazione su Rotte Singole o Gruppi
-
-Il pacchetto registra l'alias `log.operations`:
-
-```php
-Route::middleware('log.operations')->group(function () {
-    Route::resource('ordini', OrderController::class);
-});
-```
 
 ---
 
@@ -240,6 +272,40 @@ Il pacchetto espone automaticamente i seguenti endpoint REST sotto `/api/logoper
 | `POST` | `/api/logoperations/studio/user-session` | Avvia il monitoraggio temporizzato di un utente |
 | `DELETE` | `/api/logoperations/studio/user-session/{id}` | Interrompe anticipatamente una sessione utente |
 | `GET` | `/api/logoperations/studio/users` | Ricerca rapida utenti per nome o email |
+
+---
+
+### 🔐 Protezione e Autorizzazione API (Gate & Middleware)
+
+Per impostazione predefinita, in ambiente locale (`APP_ENV=local`) o di test le API sono accessibili liberamente. In ambiente di produzione o staging, è **fondamentale proteggere l'accesso**:
+
+#### 1. Configurare i Middleware in `config/logoperations.php`:
+```php
+// Esempio con autenticazione Sanctum o sessione Web
+'api_middleware' => ['web', 'auth'],
+// oppure:
+'api_middleware' => ['api', 'auth:sanctum'],
+```
+
+#### 2. Definire il Gate di Autorizzazione (es. in `AppServiceProvider.php` o `AuthServiceProvider.php`):
+Il pacchetto verifica automaticamente il Gate `viewLogOperations`:
+
+```php
+use Illuminate\Support\Facades\Gate;
+
+public function boot(): void
+{
+    Gate::define('viewLogOperations', function ($user = null) {
+        // Consenti l'accesso solo agli amministratori
+        return $user && in_array($user->email, [
+            'admin@tuodominio.com',
+            'supporto@tuodominio.com',
+        ]);
+    });
+}
+```
+
+Se il Gate restituisce `false`, le API bloccheranno l'accesso con codice `403 Forbidden`.
 
 ---
 

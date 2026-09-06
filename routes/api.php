@@ -48,14 +48,16 @@ $routeGroup = function () {
 };
 
 $prefix = config('logoperations.api_prefix', 'api/logoperations');
+$middleware = config('logoperations.api_middleware', ['api']);
 
 Route::prefix($prefix)
-    ->middleware('api')
+    ->middleware($middleware)
     ->group($routeGroup);
 
 // Alias retrocompatibile se il prefisso principale è differente
 if ($prefix !== 'api/log-operations') {
     Route::prefix('api/log-operations')
-        ->middleware('api')
+        ->middleware($middleware)
         ->group($routeGroup);
 }
+

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 use SalvatoreCervone\LogOperations\Models\OperationLog;
+use SalvatoreCervone\LogOperations\Http\Controllers\Concerns\AuthorizesLogOperations;
 
 /**
  * Controller REST per l'interrogazione dei log operazioni.
@@ -21,6 +22,16 @@ use SalvatoreCervone\LogOperations\Models\OperationLog;
  */
 class LogOperationsController extends Controller
 {
+    use AuthorizesLogOperations;
+
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+            $this->authorizeAccess($request);
+            return $next($request);
+        });
+    }
+
     /**
      * Lista paginata dei log con filtri combinati.
      *

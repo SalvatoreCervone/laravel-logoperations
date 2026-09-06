@@ -274,6 +274,22 @@ class LogOperationsMiddleware
             return true;
         }
 
+        // Gestione modalità selettiva: se 'selective', logga solo se la rotta ha il middleware applicato esplicitamente
+        $mode = config('logoperations.mode', 'all');
+        if ($mode === 'selective') {
+            $route = $request->route();
+            $hasExplicitMiddleware = false;
+            if ($route && method_exists($route, 'gatherMiddleware')) {
+                $middlewares = $route->gatherMiddleware();
+                $hasExplicitMiddleware = in_array('log.operations', $middlewares, true)
+                    || in_array('logoperations', $middlewares, true);
+            }
+
+            if (!$hasExplicitMiddleware) {
+                return false;
+            }
+        }
+
         // Altrimenti applica i filtri di configurazione standard:
         // Verifica codici di stato esclusi
         $excludedCodes = config('logoperations.excluded_status_codes', []);
