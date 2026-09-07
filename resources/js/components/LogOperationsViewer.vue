@@ -26,12 +26,17 @@ const props = defineProps({
 /* ------------------------------------------------------------------ */
 
 const currentView = ref('logs') // 'logs' | 'studio'
-const logs = ref({ data: [], current_page: 1, last_page: 1, total: 0 })
+const logs = ref({ data: [], current_page: 1, last_page: 1, total: 0, from: 0, to: 0 })
 const loading = ref(false)
 const showFilters = ref(true)
 const showQueryBuilder = ref(false)
 const selectedLog = ref(null)
 const showDetail = ref(false)
+
+// Paginazione interattiva (Fase 8)
+const currentPerPage = ref(props.perPage)
+const perPageOptions = [15, 20, 25, 50, 100]
+const jumpPageInput = ref(1)
 
 // Statistiche KPI
 const stats = ref({
@@ -234,7 +239,8 @@ async function loadLogs(page = 1) {
   try {
     const params = new URLSearchParams()
     params.set('page', page)
-    params.set('per_page', props.perPage)
+    params.set('per_page', currentPerPage.value)
+    jumpPageInput.value = page
 
     // Se il query builder avanzato è attivo, usa i gruppi
     if (showQueryBuilder.value && groups.value.length) {
@@ -318,6 +324,17 @@ async function openDetail(log) {
 function goToPage(page) {
   if (page >= 1 && page <= logs.value.last_page) {
     loadLogs(page)
+  }
+}
+
+function onPerPageChange() {
+  loadLogs(1)
+}
+
+function jumpToPage() {
+  const p = parseInt(jumpPageInput.value, 10)
+  if (!isNaN(p)) {
+    goToPage(Math.max(1, Math.min(p, logs.value.last_page || 1)))
   }
 }
 
@@ -757,37 +774,82 @@ onMounted(async () => {
 
     <!-- PAGINATION -->
     <div class="pagination">
-      <button
-        class="btn btn--outline btn--sm"
-        :disabled="logs.current_page <= 1"
-        @click="goToPage(logs.current_page - 1)"
-      >
-        ← Precedente
-      </button>
+      <div class="pagination__info">
+        Mostrati da <strong>{{ logs.from || 0 }}</strong> a <strong>{{ logs.to || 0 }}</strong> di <strong>{{ logs.total || 0 }}</strong> record
+      </div>
 
-      <div class="pagination__pages">
+      <div class="pagination__nav">
         <button
-          v-for="p in paginationRange"
-          :key="p"
-          :class="['pagination__page', { active: p === logs.current_page }]"
-          @click="goToPage(p)"
-          :disabled="p === '...'"
+          class="btn btn--outline btn--sm"
+          :disabled="logs.current_page <= 1"
+          @click="goToPage(1)"
+          title="Prima pagina"
         >
-          {{ p }}
+          «
+        </button>
+        <button
+          class="btn btn--outline btn--sm"
+          :disabled="logs.current_page <= 1"
+          @click="goToPage(logs.current_page - 1)"
+          title="Pagina precedente"
+        >
+          ‹
+        </button>
+
+        <div class="pagination__pages">
+          <button
+            v-for="p in paginationRange"
+            :key="p"
+            :class="['pagination__page', { active: p === logs.current_page }]"
+            @click="goToPage(p)"
+            :disabled="p === '...'"
+          >
+            {{ p }}
+          </button>
+        </div>
+
+        <button
+          class="btn btn--outline btn--sm"
+          :disabled="logs.current_page >= logs.last_page"
+          @click="goToPage(logs.current_page + 1)"
+          title="Pagina successiva"
+        >
+          ›
+        </button>
+        <button
+          class="btn btn--outline btn--sm"
+          :disabled="logs.current_page >= logs.last_page"
+          @click="goToPage(logs.last_page)"
+          title="Ultima pagina"
+        >
+          »
         </button>
       </div>
 
-      <span class="pagination__info">
-        Pagina {{ logs.current_page }} di {{ logs.last_page }}
-      </span>
+      <div class="pagination__options" style="display: flex; align-items: center; gap: 10px;">
+        <label style="font-size: 12px; color: var(--text-muted, #94a3b8);">Per pagina:</label>
+        <select
+          v-model="currentPerPage"
+          @change="onPerPageChange"
+          class="filter-select"
+          style="padding: 4px 8px; font-size: 12px; border-radius: 6px;"
+        >
+          <option v-for="opt in perPageOptions" :key="opt" :value="opt">{{ opt }}</option>
+        </select>
 
-      <button
-        class="btn btn--outline btn--sm"
-        :disabled="logs.current_page >= logs.last_page"
-        @click="goToPage(logs.current_page + 1)"
-      >
-        Successiva →
-      </button>
+        <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-muted, #94a3b8);">
+          <span>Vai a:</span>
+          <input
+            type="number"
+            min="1"
+            :max="logs.last_page || 1"
+            v-model.number="jumpPageInput"
+            @keyup.enter="jumpToPage"
+            class="filter-input"
+            style="width: 48px; padding: 4px 6px; font-size: 12px; text-align: center; border-radius: 6px;"
+          />
+        </div>
+      </div>
     </div>
   </div>
 

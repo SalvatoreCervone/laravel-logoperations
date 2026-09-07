@@ -77,7 +77,8 @@ class LogOperationsController extends Controller
                 $tableName . '.subject_type',
                 $tableName . '.subject_id',
             ])
-            ->orderBy($tableName . '.dataoperazione', 'desc');
+            ->orderBy($tableName . '.dataoperazione', 'desc')
+            ->orderBy($tableName . '.id', 'desc');
 
         /*
         |----------------------------------------------------------------------
@@ -95,8 +96,10 @@ class LogOperationsController extends Controller
         */
         $this->applyDirectFilters($query, $request, $tableName);
 
-        // Paginazione
-        $perPage = min((int) $request->input('per_page', 20), 100);
+        // Paginazione server-side deterministica
+        $defaultPerPage = (int) config('logoperations.dashboard.per_page', 20);
+        $requestedPerPage = (int) $request->input('per_page', $defaultPerPage);
+        $perPage = max(1, min($requestedPerPage, 100));
         $logs = $query->paginate($perPage)->withQueryString();
 
         // Arricchisci i risultati con i dati dell'utente polimorfico

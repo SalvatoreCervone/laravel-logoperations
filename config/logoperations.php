@@ -191,6 +191,8 @@ return [
     'excluded_routes' => [
         'api/logoperations*',
         'api/log-operations*',
+        'logoperations*',
+        'log-operations*',
         'telescope*',
         '_debugbar*',
         'horizon*',
@@ -360,6 +362,33 @@ return [
     */
 
     'user_search_fields' => ['name', 'cognome', 'email'],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Dashboard Web Standalone
+    |--------------------------------------------------------------------------
+    |
+    | Configurazione per la dashboard grafica integrata nel pacchetto.
+    | Non richiede build frontend, compilatori npm o configurazioni esterne.
+    |
+    */
+
+    'dashboard' => [
+        // Abilita o disabilita la rotta web autonoma
+        'enabled' => env('LOG_OPERATIONS_DASHBOARD_ENABLED', true),
+
+        // Percorso URI della dashboard web (es. /logoperations)
+        'route' => env('LOG_OPERATIONS_DASHBOARD_ROUTE', 'logoperations'),
+
+        // Middleware applicati alla rotta della dashboard web
+        'middleware' => ['web'],
+
+        // Numero predefinito di elementi per pagina
+        'per_page' => 20,
+
+        // Opzioni selezionabili per elementi per pagina
+        'per_page_options' => [15, 20, 25, 50, 100],
+    ],
 
     /*
     |--------------------------------------------------------------------------

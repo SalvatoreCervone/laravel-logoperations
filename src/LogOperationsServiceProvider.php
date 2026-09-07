@@ -72,10 +72,23 @@ class LogOperationsServiceProvider extends ServiceProvider
             __DIR__ . '/../database/migrations'
         );
 
-        // Caricamento delle rotte API
+        // Caricamento delle rotte API e Web
         $this->loadRoutesFrom(
             __DIR__ . '/../routes/api.php'
         );
+        $this->loadRoutesFrom(
+            __DIR__ . '/../routes/web.php'
+        );
+
+        // Caricamento e pubblicazione viste Blade
+        $this->loadViewsFrom(
+            __DIR__ . '/../resources/views',
+            'logoperations'
+        );
+
+        $this->publishes([
+            __DIR__ . '/../resources/views' => resource_path('views/vendor/logoperations'),
+        ], 'logoperations-views');
 
         // Pubblicazione dei componenti Vue
         $this->publishes([

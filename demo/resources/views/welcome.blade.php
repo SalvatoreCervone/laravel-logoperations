@@ -597,6 +597,35 @@
         }
         .btn-view-detail:hover { color: #fff; border-color: var(--primary); }
 
+        .page-btn {
+            background: var(--surface-card);
+            border: 1px solid var(--border-color);
+            color: #cbd5e1;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            min-width: 34px;
+            text-align: center;
+        }
+        .page-btn:hover:not(:disabled) {
+            background: var(--surface-hover);
+            color: #fff;
+            border-color: #6366f1;
+        }
+        .page-btn.active {
+            background: #4f46e5;
+            color: #fff;
+            border-color: #818cf8;
+            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.4);
+        }
+        .page-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
         .session-pulse {
             display: inline-block;
             width: 8px;
@@ -1171,6 +1200,40 @@
                         </tr>
                     </tbody>
                 </table>
+
+                <!-- PAGINATION BAR (FASE 8) -->
+                <div class="pagination-bar" style="background: #10192d; border-top: 1px solid var(--border-color); padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+                    <div class="pagination-info" style="font-size: 12px; color: var(--text-muted);">
+                        Mostrati da <strong style="color: #fff;">@{{ pagination.from || 0 }}</strong> a <strong style="color: #fff;">@{{ pagination.to || 0 }}</strong> di <strong style="color: #fff;">@{{ pagination.total || 0 }}</strong> record totali
+                    </div>
+
+                    <div class="pagination-nav" style="display: flex; align-items: center; gap: 6px;">
+                        <button class="page-btn" :disabled="currentPage <= 1" @click="goToPage(1)" title="Prima pagina">«</button>
+                        <button class="page-btn" :disabled="currentPage <= 1" @click="goToPage(currentPage - 1)" title="Pagina precedente">‹</button>
+
+                        <template v-for="(p, idx) in visiblePages" :key="idx">
+                            <span v-if="p === '...'" style="color: var(--text-muted); padding: 0 4px;">...</span>
+                            <button v-else :class="['page-btn', { active: p === currentPage }]" @click="goToPage(p)">
+                                @{{ p }}
+                            </button>
+                        </template>
+
+                        <button class="page-btn" :disabled="currentPage >= pagination.last_page" @click="goToPage(currentPage + 1)" title="Pagina successiva">›</button>
+                        <button class="page-btn" :disabled="currentPage >= pagination.last_page" @click="goToPage(pagination.last_page)" title="Ultima pagina">»</button>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <label style="font-size: 12px; color: var(--text-muted);">Per pagina:</label>
+                        <select v-model="perPage" @change="onPerPageChange" style="background: #0b1326; border: 1px solid var(--border-color); color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 12px; outline: none;">
+                            <option v-for="opt in perPageOptions" :key="opt" :value="opt">@{{ opt }}</option>
+                        </select>
+
+                        <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted);">
+                            <span>Vai a:</span>
+                            <input type="number" min="1" :max="pagination.last_page || 1" v-model.number="jumpPageNumber" @keyup.enter="jumpToPage" style="width: 48px; background: #0b1326; border: 1px solid var(--border-color); color: #fff; padding: 5px 6px; border-radius: 6px; font-size: 12px; text-align: center; outline: none;">
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- TAB: STORYBOARD RECORD (FASE 5) -->
@@ -1705,6 +1768,18 @@
                 const lastSimResult = ref('');
                 const routeFilter = ref('');
                 const activeModalLog = ref(null);
+
+                // Paginazione (Fase 8)
+                const currentPage = ref(1);
+                const perPage = ref(20);
+                const perPageOptions = ref([15, 20, 25, 50, 100]);
+                const pagination = ref({
+                    total: 0,
+                    last_page: 1,
+                    from: 0,
+                    to: 0,
+                });
+                const jumpPageNumber = ref(1);
                 const stackViewMode = ref('core');
                 const stats = ref({});
 
@@ -1805,10 +1880,11 @@
                     return activeModalLog.value.stack_trace.some(f => !f.is_core);
                 });
 
-                async function fetchLogs() {
+                async function fetchLogs(page = 1) {
                     try {
                         const params = new URLSearchParams();
-                        params.append('per_page', '50');
+                        params.append('page', page.toString());
+                        params.append('per_page', perPage.value.toString());
 
                         if (activeQuickFilter.value === '500' || filterStatus.value === '500') {
                             params.append('status_codes[]', '500');
@@ -1843,6 +1919,14 @@
                         const res = await fetch(`/api/logoperations?${params.toString()}`);
                         const data = await res.json();
                         logs.value = data.data || [];
+                        currentPage.value = data.current_page || 1;
+                        pagination.value = {
+                            total: data.total || 0,
+                            last_page: data.last_page || 1,
+                            from: data.from || 0,
+                            to: data.to || 0,
+                        };
+                        jumpPageNumber.value = currentPage.value;
                     } catch (e) {}
 
                     try {
@@ -1851,6 +1935,50 @@
                         stats.value = sData.data || {};
                     } catch (e) {}
                 }
+
+                function goToPage(page) {
+                    if (page >= 1 && page <= (pagination.value.last_page || 1) && page !== currentPage.value) {
+                        currentPage.value = page;
+                        fetchLogs(page);
+                    }
+                }
+
+                function onPerPageChange() {
+                    currentPage.value = 1;
+                    fetchLogs(1);
+                }
+
+                function jumpToPage() {
+                    const target = parseInt(jumpPageNumber.value, 10);
+                    if (!isNaN(target)) {
+                        goToPage(Math.max(1, Math.min(target, pagination.value.last_page)));
+                    }
+                }
+
+                const visiblePages = computed(() => {
+                    const total = pagination.value.last_page || 1;
+                    const current = currentPage.value;
+                    const delta = 2;
+                    const pages = [];
+
+                    for (let i = Math.max(2, current - delta); i <= Math.min(total - 1, current + delta); i++) {
+                        pages.push(i);
+                    }
+
+                    if (current - delta > 2) {
+                        pages.unshift('...');
+                    }
+                    pages.unshift(1);
+
+                    if (current + delta < total - 1) {
+                        pages.push('...');
+                    }
+                    if (total > 1) {
+                        pages.push(total);
+                    }
+
+                    return pages;
+                });
 
                 async function fetchStudioData() {
                     try {
@@ -2213,6 +2341,9 @@
                     fetchLogs, switchUser, runSimulation, toggleRouteTracking, updateRouteLevel,
                     toggleMethodTracking, startLiveSession, stopLiveSession, openLogDetail,
                     formatDate, formatSeconds,
+                    // Paginazione (Fase 8)
+                    currentPage, perPage, perPageOptions, pagination, jumpPageNumber, visiblePages,
+                    goToPage, onPerPageChange, jumpToPage,
                     // Storyboard exports
                     ordersList, selectedOrderId, storyboardData, storyboardLoading,
                     storyboardCategory, storyboardSearch, storyboardSort, expandedTimelineEvents,
