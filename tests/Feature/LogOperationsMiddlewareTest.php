@@ -94,11 +94,12 @@ class LogOperationsMiddlewareTest extends TestCase
 
     public function test_it_rolls_back_unfinished_transactions_on_error(): void
     {
+        $baseLevel = DB::transactionLevel();
         $response = $this->getJson('/test-transaction-rollback');
         $response->assertStatus(500);
 
-        // La transazione aperta deve essere stata annullata (rollback a livello 0)
-        $this->assertEquals(0, DB::transactionLevel());
+        // La transazione aperta durante la richiesta deve essere stata annullata
+        $this->assertEquals($baseLevel, DB::transactionLevel());
 
         // Il record temporaneo inserito nella transazione non deve esistere
         $this->assertDatabaseMissing('log_operazioni_regole', [

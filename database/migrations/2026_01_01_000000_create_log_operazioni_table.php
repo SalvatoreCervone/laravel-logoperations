@@ -32,6 +32,10 @@ return new class extends Migration
             // Supporta qualsiasi modello: User, Admin, Customer, etc.
             $table->nullableMorphs('user');
 
+            // Relazione entità target polimorfica (subject_id + subject_type)
+            // Supporta qualsiasi modello: Order, Invoice, Customer, Ticket, etc.
+            $table->nullableMorphs('subject');
+
             // Rotta completa della richiesta HTTP
             $table->string('rotta', 1024);
 

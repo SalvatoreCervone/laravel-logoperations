@@ -77,3 +77,87 @@ Route::post('/api/demo/login-as', function (Request $request) {
 
     return response()->json(['success' => false, 'message' => 'Utente non trovato'], 404);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Rotte Demo per Storyboard & Audit Trail (Fase 5)
+|--------------------------------------------------------------------------
+*/
+use App\Models\Order;
+
+Route::get('/api/demo/orders-list', function () {
+    if (Order::count() === 0) {
+        $first = Order::create([
+            'reference' => 'ORD-2026-001',
+            'customer_name' => 'Mario Rossi',
+            'amount' => 249.99,
+            'status' => 'confirmed',
+        ]);
+        $first->logStep('Ordine inizializzato nel sistema (Seed Demo)', [
+            'note' => 'Record di esempio per testare la timeline di vita dell\'entità',
+        ]);
+    }
+    return response()->json(Order::orderBy('id', 'desc')->get());
+});
+
+Route::get('/api/demo/orders/{order}', function (Order $order) {
+    return response()->json([
+        'order' => $order,
+        'message' => 'Dettaglio ordine visualizzato. Subject rilevato automaticamente via Route Model Binding.',
+    ]);
+});
+
+Route::put('/api/demo/orders/{order}', function (Request $request, Order $order) {
+    $order->update($request->only('status', 'amount', 'customer_name'));
+    return response()->json([
+        'order' => $order,
+        'message' => 'Stato ordine aggiornato! Evento PUT registrato sulla timeline del subject.',
+    ]);
+});
+
+Route::post('/api/demo/orders/{order}/checkpoint', function (Request $request, Order $order) {
+    $label = $request->input('label', 'Spedizione presa in carico dal corriere');
+    $payload = $request->input('payload', [
+        'corriere' => 'GLS Express',
+        'tracking' => 'GLS-' . rand(100000, 999999),
+        'colli' => 1,
+        'peso_kg' => 2.4,
+    ]);
+
+    $log = $order->logStep($label, $payload);
+
+    return response()->json([
+        'success' => true,
+        'log' => $log,
+        'message' => 'Checkpoint registrato direttamente con $order->logStep()!',
+    ]);
+});
+
+Route::post('/api/demo/orders/{order}/fail', function (Request $request, Order $order) {
+    return response()->json([
+        'success' => false,
+        'error' => 'Transazione di pagamento respinta per superamento plafond.',
+        'order_reference' => $order->reference,
+    ], 400);
+});
+
+Route::post('/api/demo/orders-create', function (Request $request) {
+    $count = Order::count() + 1;
+    $order = Order::create([
+        'reference' => 'ORD-2026-' . str_pad($count, 3, '0', STR_PAD_LEFT),
+        'customer_name' => $request->input('customer_name', 'Cliente Demo ' . $count),
+        'amount' => $request->input('amount', rand(80, 850) + 0.50),
+        'status' => 'pending',
+    ]);
+
+    $order->logStep('Ordine creato nel sistema', [
+        'creato_da' => Auth::user()?->name ?: 'Utente Anonimo',
+        'ip' => $request->ip(),
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'order' => $order,
+        'message' => "Nuovo ordine {$order->reference} creato!",
+    ]);
+});

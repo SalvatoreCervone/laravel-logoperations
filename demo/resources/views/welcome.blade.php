@@ -688,6 +688,123 @@
         .guide-banner p {
             margin: 0;
         }
+
+        /* Storyboard Timeline Styles */
+        .storyboard-toolbar {
+            background: #090d16;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .storyboard-timeline-wrap {
+            padding: 10px 24px 30px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .timeline-item {
+            display: flex;
+            gap: 16px;
+            position: relative;
+        }
+
+        .timeline-stem-line {
+            width: 2px;
+            background: #334155;
+            flex-grow: 1;
+            margin: 6px 0;
+        }
+
+        .timeline-bullet-node {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+            color: #fff;
+            z-index: 2;
+            box-shadow: 0 0 0 4px var(--surface-card);
+            flex-shrink: 0;
+        }
+
+        .timeline-event-card {
+            flex: 1;
+            background: var(--surface-dark);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            margin-bottom: 16px;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+
+        .timeline-event-card:hover {
+            border-color: #6366f1;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .timeline-event-header {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            gap: 12px;
+            user-select: none;
+        }
+
+        .timeline-event-body {
+            padding: 14px 16px;
+            border-top: 1px solid var(--border-color);
+            background: #090d16;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .pill-btn {
+            padding: 5px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 9999px;
+            border: 1px solid var(--border-color);
+            background: var(--surface-card);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .pill-btn:hover {
+            color: #fff;
+            background: var(--surface-hover);
+        }
+
+        .pill-btn.active {
+            background: #4f46e5;
+            color: #fff;
+            border-color: #4f46e5;
+        }
+
+        .pill-btn-error.active {
+            background: #dc2626;
+            border-color: #dc2626;
+            color: #fff;
+        }
+
+        .pill-btn-checkpoint.active {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: #fff;
+        }
     </style>
 </head>
 <body>
@@ -769,6 +886,9 @@
             <div class="main-nav">
                 <button :class="['main-tab', { active: currentTab === 'logs' }]" @click="currentTab = 'logs'">
                     📊 Registro Operazioni (@{{ logs.length }})
+                </button>
+                <button :class="['main-tab', { active: currentTab === 'storyboard' }]" @click="currentTab = 'storyboard'; fetchStoryboard();">
+                    📖 Storyboard Record & Audit Trail (Fase 5)
                 </button>
                 <button :class="['main-tab', { active: currentTab === 'studio_routes' }]" @click="currentTab = 'studio_routes'">
                     🗺️ Studio Rotte (Pagine & API)
@@ -1033,6 +1153,211 @@
                         </tr>
                     </tbody>
                 </table>
+            </div>
+
+            <!-- TAB: STORYBOARD RECORD (FASE 5) -->
+            <div v-if="currentTab === 'storyboard'" class="content-card">
+                <div class="content-header">
+                    <div>
+                        <div class="content-title">📖 Storyboard del Record & Audit Trail (Fase 5)</div>
+                        <span style="font-size: 12px; color: var(--text-muted);">
+                            Tracciamento cronologico automatico del ciclo di vita dei modelli Eloquent (<code style="color: #a5b4fc;">App\Models\Order</code>) con Route Model Binding e checkpoint applicativi
+                        </span>
+                    </div>
+
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button class="sim-btn btn-info" style="padding: 6px 12px; font-size: 12px;" @click="toggleStoryboardSort">
+                            ⇅ @{{ storyboardSort === 'asc' ? 'Cronologico (Dal più vecchio)' : 'Inverso (Dal più recente)' }}
+                        </button>
+                        <button class="sim-btn btn-info" style="padding: 6px 12px; font-size: 12px;" :disabled="storyboardLoading" @click="fetchStoryboard">
+                            🔄 Ricarica Timeline
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ORDER SELECTOR & SIMULATOR ACTIONS -->
+                <div class="storyboard-toolbar">
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <span style="font-size: 13px; font-weight: 700; color: #fff;">Seleziona Ordine Target:</span>
+                        <select v-model="selectedOrderId" @change="fetchStoryboard" class="sim-input" style="padding: 6px 12px; font-size: 13px; font-weight: 600; border-radius: 8px; border: 1px solid var(--border-color); background: #0f172a; color: #fff;">
+                            <option v-for="ord in ordersList" :key="ord.id" :value="ord.id">
+                                @{{ ord.reference }} — @{{ ord.customer_name }} (€@{{ ord.amount }}) [@{{ ord.status }}]
+                            </option>
+                        </select>
+                        <button class="sim-btn" style="background: #8b5cf6; color: #fff; padding: 6px 12px; font-size: 12px;" @click="simulateOrderAction('create')">
+                            ➕ Crea Nuovo Ordine (POST)
+                        </button>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">Simula Azioni su questo Ordine:</span>
+                        <button class="sim-btn btn-info" style="padding: 6px 10px; font-size: 12px;" :disabled="!selectedOrderId" @click="simulateOrderAction('view')" title="Esegue GET /api/demo/orders/{id}">
+                            👁️ Leggi (GET)
+                        </button>
+                        <button class="sim-btn btn-warning" style="padding: 6px 10px; font-size: 12px;" :disabled="!selectedOrderId" @click="simulateOrderAction('update')" title="Esegue PUT /api/demo/orders/{id}">
+                            ✏️ Modifica (PUT)
+                        </button>
+                        <button class="sim-btn btn-success" style="padding: 6px 10px; font-size: 12px;" :disabled="!selectedOrderId" @click="simulateOrderAction('checkpoint')" title="Chiama $order->logStep()">
+                            🚩 Checkpoint (logStep)
+                        </button>
+                        <button class="sim-btn btn-danger" style="padding: 6px 10px; font-size: 12px;" :disabled="!selectedOrderId" @click="simulateOrderAction('fail')" title="Simula errore HTTP 400 associato al record">
+                            ⚠️ Errore (400)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- KPI BAR PER IL RECORD -->
+                <div v-if="storyboardData.kpis" style="display: flex; gap: 12px; padding: 0 20px 14px; flex-wrap: wrap;">
+                    <div class="kpi-card" style="flex: 1; min-width: 140px; padding: 10px 14px;">
+                        <div class="kpi-label">Eventi Totali</div>
+                        <div class="kpi-value" style="font-size: 20px;">@{{ storyboardData.kpis.total_events || 0 }}</div>
+                    </div>
+                    <div class="kpi-card kpi-error" style="flex: 1; min-width: 140px; padding: 10px 14px;">
+                        <div class="kpi-label">Errori Rilevati</div>
+                        <div class="kpi-value" style="font-size: 20px; color: #ef4444;">@{{ storyboardData.kpis.total_errors || 0 }}</div>
+                    </div>
+                    <div class="kpi-card" style="flex: 1; min-width: 140px; padding: 10px 14px;">
+                        <div class="kpi-label">Rollback DB</div>
+                        <div class="kpi-value" style="font-size: 20px; color: #f59e0b;">@{{ storyboardData.kpis.total_rollbacks || 0 }}</div>
+                    </div>
+                    <div class="kpi-card" style="flex: 1; min-width: 140px; padding: 10px 14px;">
+                        <div class="kpi-label">Checkpoint logStep()</div>
+                        <div class="kpi-value" style="font-size: 20px; color: #3b82f6;">@{{ storyboardData.kpis.total_checkpoints || 0 }}</div>
+                    </div>
+                    <div v-if="storyboardData.kpis.last_activity" class="kpi-card" style="flex: 1; min-width: 140px; padding: 10px 14px;">
+                        <div class="kpi-label">Ultima Attività</div>
+                        <div style="font-size: 13px; font-weight: 700; color: #cbd5e1; margin-top: 6px;">@{{ formatDate(storyboardData.kpis.last_activity) }}</div>
+                    </div>
+                </div>
+
+                <!-- CONTROLS & FILTER PILLS -->
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 20px 16px; gap: 12px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                        <button :class="['pill-btn', { active: storyboardCategory === 'all' }]" @click="storyboardCategory = 'all'">
+                            Tutti (@{{ storyboardData.events?.length || 0 }})
+                        </button>
+                        <button :class="['pill-btn pill-btn-error', { active: storyboardCategory === 'error' }]" @click="storyboardCategory = 'error'">
+                            Errori & Rollback (@{{ (storyboardData.kpis?.total_errors || 0) + (storyboardData.kpis?.total_rollbacks || 0) }})
+                        </button>
+                        <button :class="['pill-btn', { active: storyboardCategory === 'create' }]" @click="storyboardCategory = 'create'">
+                            Creazione
+                        </button>
+                        <button :class="['pill-btn', { active: storyboardCategory === 'update' }]" @click="storyboardCategory = 'update'">
+                            Modifiche
+                        </button>
+                        <button :class="['pill-btn pill-btn-checkpoint', { active: storyboardCategory === 'checkpoint' }]" @click="storyboardCategory = 'checkpoint'">
+                            Checkpoint (@{{ storyboardData.kpis?.total_checkpoints || 0 }})
+                        </button>
+                    </div>
+
+                    <input v-model="storyboardSearch" type="text" placeholder="Cerca rotta, autore, payload, errore..." class="search-input" style="max-width: 320px;">
+                </div>
+
+                <!-- VERTICAL TIMELINE -->
+                <div class="storyboard-timeline-wrap">
+                    <div v-if="storyboardLoading" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                        Caricamento timeline del record in corso...
+                    </div>
+
+                    <div v-else-if="filteredStoryboardEvents.length === 0" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                        Nessun evento registrato per questo ordine con i filtri selezionati. Usa i pulsanti di simulazione in alto per registrare chiamate e checkpoint!
+                    </div>
+
+                    <div v-else style="display: flex; flex-direction: column;">
+                        <div
+                            v-for="(event, eIdx) in filteredStoryboardEvents"
+                            :key="event.id"
+                            class="timeline-item"
+                        >
+                            <!-- Stem + Bullet Node -->
+                            <div style="display: flex; flex-direction: column; align-items: center; width: 28px; flex-shrink: 0;">
+                                <div
+                                    class="timeline-bullet-node"
+                                    :style="{ backgroundColor: event.classification?.badge_color || '#6b7280' }"
+                                >
+                                    <span v-if="event.classification?.category === 'error'">✕</span>
+                                    <span v-else-if="event.classification?.category === 'create'">+</span>
+                                    <span v-else-if="event.classification?.category === 'checkpoint'">★</span>
+                                    <span v-else-if="event.classification?.category === 'delete'">−</span>
+                                    <span v-else>●</span>
+                                </div>
+                                <div v-if="eIdx < filteredStoryboardEvents.length - 1" class="timeline-stem-line"></div>
+                            </div>
+
+                            <!-- Timeline Card -->
+                            <div class="timeline-event-card">
+                                <div class="timeline-event-header" @click="toggleTimelineEvent(event.id)">
+                                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                        <span
+                                            style="font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase;"
+                                            :style="{ backgroundColor: (event.classification?.badge_color || '#6b7280') + '30', color: event.classification?.badge_color || '#6b7280' }"
+                                        >
+                                            @{{ event.classification?.badge_label || event.verbo }}
+                                        </span>
+
+                                        <span style="font-size: 14px; font-weight: 600; color: #fff;">
+                                            @{{ event.classification?.title }}
+                                        </span>
+
+                                        <span v-if="event.codicehttp" class="status-badge" :class="`status-${event.codicehttp}`">
+                                            HTTP @{{ event.codicehttp }}
+                                        </span>
+
+                                        <span v-if="event.duration_ms != null && event.duration_ms > 0" style="font-size: 11px; color: var(--text-muted); font-family: monospace;">
+                                            ⏱️ @{{ event.duration_ms }} ms
+                                        </span>
+                                    </div>
+
+                                    <div style="display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--text-muted); flex-shrink: 0;">
+                                        <span>👤 @{{ event.user_label }}</span>
+                                        <span>🕒 @{{ formatDate(event.dataoperazione) }}</span>
+                                        <span style="font-size: 12px; color: #a5b4fc;">@{{ expandedTimelineEvents.has(event.id) ? '▲' : '▼' }}</span>
+                                    </div>
+                                </div>
+
+                                <!-- Card Collapsible Details -->
+                                <div v-if="expandedTimelineEvents.has(event.id)" class="timeline-event-body">
+                                    <div style="display: flex; align-items: center; gap: 10px; font-size: 13px;">
+                                        <span style="width: 90px; font-weight: 600; color: var(--text-muted); font-size: 12px;">Endpoint:</span>
+                                        <span style="background: #1e293b; padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #38bdf8;">
+                                            <strong>@{{ (event.verbo || '').toUpperCase() }}</strong> @{{ event.rotta }}
+                                        </span>
+                                    </div>
+
+                                    <div v-if="event.controllermethod" style="display: flex; align-items: center; gap: 10px; font-size: 13px;">
+                                        <span style="width: 90px; font-weight: 600; color: var(--text-muted); font-size: 12px;">Handler:</span>
+                                        <span style="background: #1e293b; padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #a5b4fc;">
+                                            @{{ event.controllermethod }}
+                                        </span>
+                                    </div>
+
+                                    <!-- Custom Steps ($order->logStep) -->
+                                    <div v-if="event.custom_traces?.steps?.length" style="background: #1e293b; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-top: 4px;">
+                                        <div style="font-size: 12px; font-weight: 700; color: #38bdf8; margin-bottom: 8px;">
+                                            🚩 Passaggi Chiave & Dati Contestuali ($order->logStep):
+                                        </div>
+                                        <div v-for="(st, sI) in event.custom_traces.steps" :key="sI" style="margin-bottom: 6px;">
+                                            <div style="font-size: 13px; font-weight: 600; color: #fff;">@{{ st.label }}</div>
+                                            <pre v-if="st.context && Object.keys(st.context).length" style="margin-top: 4px; background: #090d16; padding: 8px; border-radius: 6px; font-size: 11px; font-family: monospace; color: #94a3b8; overflow-x: auto;">@{{ JSON.stringify(st.context, null, 2) }}</pre>
+                                        </div>
+                                    </div>
+
+                                    <!-- Parametri / Payload -->
+                                    <div v-if="event.parametri" style="margin-top: 4px;">
+                                        <div style="font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">Payload Richiesta / Parametri:</div>
+                                        <pre style="background: #090d16; padding: 10px; border-radius: 6px; font-size: 11px; font-family: monospace; color: #f8fafc; border: 1px solid var(--border-color); max-height: 180px; overflow-y: auto;">@{{ JSON.stringify(event.parametri, null, 2) }}</pre>
+                                    </div>
+
+                                    <!-- Errore Dettagliato -->
+                                    <div v-if="event.error" style="margin-top: 4px; background: #450a0a; border: 1px solid #7f1d1d; border-radius: 6px; padding: 10px;">
+                                        <div style="font-size: 12px; font-weight: 700; color: #fecaca; margin-bottom: 4px;">Dettaglio Errore:</div>
+                                        <pre style="margin: 0; font-size: 11px; font-family: monospace; color: #fca5a5; white-space: pre-wrap;">@{{ event.error }}</pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- TAB 2: STUDIO ROTTE -->
@@ -1672,9 +1997,163 @@
                     return `${m}:${s < 10 ? '0' : ''}${s}`;
                 }
 
+                // ==========================================
+                // STATO & METODI STORYBOARD (FASE 5)
+                // ==========================================
+                const ordersList = ref([]);
+                const selectedOrderId = ref(null);
+                const storyboardData = ref({ subject: null, kpis: {}, events: [] });
+                const storyboardLoading = ref(false);
+                const storyboardCategory = ref('all');
+                const storyboardSearch = ref('');
+                const storyboardSort = ref('asc');
+                const expandedTimelineEvents = ref(new Set());
+
+                async function fetchOrders() {
+                    try {
+                        const res = await fetch('/api/demo/orders-list');
+                        if (res.ok) {
+                            ordersList.value = await res.json();
+                            if (ordersList.value.length && !selectedOrderId.value) {
+                                selectedOrderId.value = ordersList.value[0].id;
+                            }
+                        }
+                    } catch (e) {}
+                }
+
+                async function fetchStoryboard() {
+                    if (!selectedOrderId.value) {
+                        await fetchOrders();
+                    }
+                    if (!selectedOrderId.value) return;
+
+                    storyboardLoading.value = true;
+                    try {
+                        const url = new URL('/api/logoperations/storyboard', window.location.origin);
+                        url.searchParams.set('subject_type', 'App\\Models\\Order');
+                        url.searchParams.set('subject_id', selectedOrderId.value);
+                        url.searchParams.set('order', storyboardSort.value);
+
+                        const res = await fetch(url.toString(), {
+                            headers: { 'Accept': 'application/json' }
+                        });
+                        if (res.ok) {
+                            storyboardData.value = await res.json();
+                            if (storyboardData.value.events?.length) {
+                                const lastEvt = storyboardData.value.events[storyboardData.value.events.length - 1];
+                                if (lastEvt) expandedTimelineEvents.value.add(lastEvt.id);
+                            }
+                        }
+                    } catch (e) {
+                    } finally {
+                        storyboardLoading.value = false;
+                    }
+                }
+
+                function toggleStoryboardSort() {
+                    storyboardSort.value = storyboardSort.value === 'asc' ? 'desc' : 'asc';
+                    fetchStoryboard();
+                }
+
+                function toggleTimelineEvent(id) {
+                    if (expandedTimelineEvents.value.has(id)) {
+                        expandedTimelineEvents.value.delete(id);
+                    } else {
+                        expandedTimelineEvents.value.add(id);
+                    }
+                }
+
+                const filteredStoryboardEvents = computed(() => {
+                    let list = storyboardData.value.events || [];
+                    if (storyboardCategory.value !== 'all') {
+                        list = list.filter(e => {
+                            const cat = e.classification?.category;
+                            if (storyboardCategory.value === 'error') return cat === 'error';
+                            if (storyboardCategory.value === 'checkpoint') return cat === 'checkpoint';
+                            if (storyboardCategory.value === 'create') return cat === 'create';
+                            if (storyboardCategory.value === 'update') return cat === 'update';
+                            return true;
+                        });
+                    }
+                    if (storyboardSearch.value.trim()) {
+                        const q = storyboardSearch.value.toLowerCase().trim();
+                        list = list.filter(e => {
+                            return (
+                                (e.rotta && e.rotta.toLowerCase().includes(q)) ||
+                                (e.controllermethod && e.controllermethod.toLowerCase().includes(q)) ||
+                                (e.user_label && e.user_label.toLowerCase().includes(q)) ||
+                                (e.classification?.title && e.classification.title.toLowerCase().includes(q)) ||
+                                (e.error && e.error.toLowerCase().includes(q)) ||
+                                (JSON.stringify(e.parametri || {}).toLowerCase().includes(q))
+                            );
+                        });
+                    }
+                    return list;
+                });
+
+                async function simulateOrderAction(action) {
+                    if (!selectedOrderId.value && action !== 'create') return;
+
+                    simulating.value = true;
+                    try {
+                        let res;
+                        if (action === 'view') {
+                            res = await fetch(`/api/demo/orders/${selectedOrderId.value}`);
+                            lastSimResult.value = `GET /api/demo/orders/${selectedOrderId.value} eseguita (HTTP ${res.status})`;
+                        } else if (action === 'update') {
+                            const statuses = ['in_preparazione', 'spedito', 'consegnato', 'in_attesa'];
+                            const newStatus = statuses[Math.floor(Math.random() * statuses.length)];
+                            res = await fetch(`/api/demo/orders/${selectedOrderId.value}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                                body: JSON.stringify({ status: newStatus, amount: (Math.random() * 200 + 50).toFixed(2) })
+                            });
+                            lastSimResult.value = `PUT /api/demo/orders/${selectedOrderId.value} -> Stato: ${newStatus}`;
+                            await fetchOrders();
+                        } else if (action === 'checkpoint') {
+                            res = await fetch(`/api/demo/orders/${selectedOrderId.value}/checkpoint`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                                body: JSON.stringify({
+                                    label: 'Spedizione affidata all\'hub logistico',
+                                    payload: { corriere: 'BRT Express', collo_id: 'COLLO-' + Math.floor(Math.random() * 89999 + 10000) }
+                                })
+                            });
+                            lastSimResult.value = `Checkpoint registrato con $order->logStep()!`;
+                        } else if (action === 'fail') {
+                            res = await fetch(`/api/demo/orders/${selectedOrderId.value}/fail`, {
+                                method: 'POST',
+                                headers: { 'Accept': 'application/json' }
+                            });
+                            lastSimResult.value = `Simulato errore HTTP ${res.status} legato all'ordine #${selectedOrderId.value}`;
+                        } else if (action === 'create') {
+                            res = await fetch(`/api/demo/orders-create`, {
+                                method: 'POST',
+                                headers: { 'Accept': 'application/json' }
+                            });
+                            const created = await res.json();
+                            if (created.order) {
+                                await fetchOrders();
+                                selectedOrderId.value = created.order.id;
+                                lastSimResult.value = `Creato nuovo ordine ${created.order.reference}`;
+                            }
+                        }
+
+                        // Ricarica la storyboard dell'ordine e il registro generale
+                        await fetchStoryboard();
+                        await fetchLogs();
+                        await fetchStats();
+                    } catch (e) {
+                        lastSimResult.value = `Errore simulazione: ${e.message}`;
+                    } finally {
+                        simulating.value = false;
+                    }
+                }
+
                 onMounted(() => {
                     fetchLogs();
                     fetchStudioData();
+                    fetchOrders().then(() => fetchStoryboard());
                     setInterval(() => {
                         activeSessions.value.forEach(s => { if (s.seconds_left > 0) s.seconds_left--; });
                     }, 1000);
@@ -1689,7 +2168,12 @@
                     setQuickFilter, onFilterChange, resetAllFilters, debounceFetchLogs,
                     fetchLogs, switchUser, runSimulation, toggleRouteTracking, updateRouteLevel,
                     toggleMethodTracking, startLiveSession, stopLiveSession, openLogDetail,
-                    formatDate, formatSeconds
+                    formatDate, formatSeconds,
+                    // Storyboard exports
+                    ordersList, selectedOrderId, storyboardData, storyboardLoading,
+                    storyboardCategory, storyboardSearch, storyboardSort, expandedTimelineEvents,
+                    fetchOrders, fetchStoryboard, toggleStoryboardSort, toggleTimelineEvent,
+                    filteredStoryboardEvents, simulateOrderAction
                 };
             }
         }).mount('#app');

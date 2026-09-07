@@ -26,9 +26,31 @@ class LogOperationsManager
      */
     protected array $traces = [];
 
+    /**
+     * Entità target polimorfica (subject) associata alla richiesta corrente.
+     */
+    protected ?\Illuminate\Database\Eloquent\Model $subject = null;
+
     public function __construct(
         protected StackTracer $stackTracer
     ) {}
+
+    /**
+     * Associa manualmente un'entità target (subject) al log della richiesta corrente.
+     */
+    public function setSubject(?\Illuminate\Database\Eloquent\Model $subject): self
+    {
+        $this->subject = $subject;
+        return $this;
+    }
+
+    /**
+     * Restituisce l'entità target associata alla richiesta corrente.
+     */
+    public function getSubject(): ?\Illuminate\Database\Eloquent\Model
+    {
+        return $this->subject;
+    }
 
     /**
      * Registra un checkpoint/step con un'etichetta descrittiva.
@@ -212,6 +234,7 @@ class LogOperationsManager
     {
         $this->steps = [];
         $this->traces = [];
+        $this->subject = null;
     }
 
     /**

@@ -50,6 +50,9 @@ class LogOperationsMiddleware
         // Registra il tempo di inizio per calcolare la durata
         $startTime = microtime(true);
 
+        // Livello iniziale di transazione DB prima dell'esecuzione della richiesta
+        $initialTransactionLevel = DB::transactionLevel();
+
         // Registra il listener per tracciare l'origine delle query DB
         $dbListenerRegistered = false;
         if ($this->stackTracer->isEnabled()
@@ -77,7 +80,7 @@ class LogOperationsMiddleware
         | 2. Il log stesso non faccia parte di una transazione che verrà annullata
         |----------------------------------------------------------------------
         */
-        $transactionInfo = $this->handlePendingTransactions($statusCode, $response);
+        $transactionInfo = $this->handlePendingTransactions($statusCode, $response, $initialTransactionLevel);
 
         /*
         |----------------------------------------------------------------------
@@ -100,10 +103,32 @@ class LogOperationsMiddleware
         try {
             $route = $request->route();
 
+            // Ispezione parametri di rotta e rilevamento subject polimorfico
+            $subject = $this->manager->getSubject();
+            $routeParams = [];
+            if ($route && method_exists($route, 'parameters')) {
+                foreach ($route->parameters() as $key => $param) {
+                    if ($param instanceof \Illuminate\Database\Eloquent\Model) {
+                        if ($subject === null) {
+                            $subject = $param;
+                        }
+                        $routeParams[$key] = [
+                            'id' => $param->getKey(),
+                            'model' => get_class($param),
+                        ];
+                    } else {
+                        $routeParams[$key] = $param;
+                    }
+                }
+            }
+
+            $subjectId = $subject ? (string) $subject->getKey() : null;
+            $subjectType = $subject ? $subject->getMorphClass() : null;
+
             // Parametri con mascheramento dei campi sensibili
             $parametriPost = $request->all() ? ['post' => $request->all()] : [];
             $parametriQuery = $request->query() ? ['querystring' => $request->query()] : [];
-            $parametriRoute = ($route && $route->parameters()) ? ['route' => $route->parameters()] : [];
+            $parametriRoute = !empty($routeParams) ? ['route' => $routeParams] : [];
             $parametri = array_merge($parametriPost, $parametriQuery, $parametriRoute);
             $parametri = !empty($parametri) ? $this->maskSensitiveFields($parametri) : null;
 
@@ -144,6 +169,8 @@ class LogOperationsMiddleware
             $logData = [
                 'user_id' => $userId,
                 'user_type' => $userType,
+                'subject_id' => $subjectId,
+                'subject_type' => $subjectType,
                 'rotta' => Str::limit($request->getRequestUri(), 1024, ''),
                 'verbo' => $verbo,
                 'controllermethod' => $controllerMethod,
@@ -245,7 +272,7 @@ class LogOperationsMiddleware
      *
      * @return array{level: int|null, action: string|null}
      */
-    protected function handlePendingTransactions(int $statusCode, Response $response): array
+    protected function handlePendingTransactions(int $statusCode, Response $response, int $initialLevel = 0): array
     {
         $config = config('logoperations.transactions', []);
 
@@ -255,7 +282,7 @@ class LogOperationsMiddleware
 
         $level = DB::transactionLevel();
 
-        if ($level <= 0) {
+        if ($level <= $initialLevel) {
             return ['level' => null, 'action' => null];
         }
 
@@ -265,9 +292,9 @@ class LogOperationsMiddleware
         $hasException = isset($response->exception) && $response->exception;
 
         if ($statusCode >= 400 || $hasException) {
-            // Errore: rollback di TUTTI i livelli (anche nidificati/savepoint)
+            // Errore: rollback di tutti i livelli aperti durante la richiesta
             if ($config['rollback_on_error'] ?? true) {
-                while (DB::transactionLevel() > 0) {
+                while (DB::transactionLevel() > $initialLevel) {
                     DB::rollBack();
                 }
                 $action = 'rolled_back';
@@ -278,7 +305,7 @@ class LogOperationsMiddleware
         } else {
             // Successo ma transazione non chiusa (anomalia dello sviluppatore)
             if ($config['commit_on_success'] ?? false) {
-                while (DB::transactionLevel() > 0) {
+                while (DB::transactionLevel() > $initialLevel) {
                     DB::commit();
                 }
                 $action = 'committed';
@@ -286,7 +313,7 @@ class LogOperationsMiddleware
                 Log::info('[LogOperations] Transazione pendente rilevata (livello ' . $level . '). '
                     . 'Eseguito commit automatico su successo HTTP ' . $statusCode);
             } else {
-                while (DB::transactionLevel() > 0) {
+                while (DB::transactionLevel() > $initialLevel) {
                     DB::rollBack();
                 }
                 $action = 'rolled_back_dangling_on_success';

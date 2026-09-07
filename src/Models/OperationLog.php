@@ -62,6 +62,15 @@ class OperationLog extends Model
         return $this->morphTo('user');
     }
 
+    /**
+     * Relazione polimorfica all'entità target dell'operazione (subject).
+     * Supporta qualsiasi modello Eloquent: Order, Invoice, Ticket, etc.
+     */
+    public function subject(): MorphTo
+    {
+        return $this->morphTo('subject');
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Scopes di Ricerca
@@ -163,6 +172,23 @@ class OperationLog extends Model
               ->orWhere('controllermethod', 'like', $like)
               ->orWhere('error', 'like', $like);
         });
+    }
+
+    /**
+     * Filtra per entità target polimorfica (subject).
+     */
+    public function scopeForSubject(Builder $query, Model|string $subject, int|string|null $id = null): Builder
+    {
+        if ($subject instanceof Model) {
+            return $query->where('subject_type', $subject->getMorphClass())
+                         ->where('subject_id', (string) $subject->getKey());
+        }
+
+        $query->where('subject_type', $subject);
+        if ($id !== null) {
+            $query->where('subject_id', (string) $id);
+        }
+        return $query;
     }
 
     /*

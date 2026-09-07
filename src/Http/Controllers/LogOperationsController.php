@@ -123,6 +123,181 @@ class LogOperationsController extends Controller
     }
 
     /**
+     * Timeline completa di vita del record target (Storyboard & Audit Trail).
+     *
+     * GET /api/log-operations/storyboard?subject_type=...&subject_id=...
+     * oppure
+     * GET /api/log-operations/storyboard/{type}/{id}
+     */
+    public function storyboard(Request $request): JsonResponse
+    {
+        $request->validate([
+            'subject_type' => 'required|string',
+            'subject_id' => 'required',
+        ]);
+
+        $subjectType = $request->input('subject_type');
+        $subjectId = (string) $request->input('subject_id');
+        $order = strtolower($request->input('order', 'asc')) === 'desc' ? 'desc' : 'asc';
+        $limit = min((int) $request->input('limit', 200), 500);
+
+        $query = OperationLog::query()
+            ->forSubject($subjectType, $subjectId);
+
+        // Calcolo KPI riassuntivi sull'intera storia dell'entità
+        $totalEvents = (clone $query)->count();
+        $totalErrors = (clone $query)->where('codicehttp', '>=', 400)->count();
+        $totalRollbacks = (clone $query)->whereNotNull('transaction_status')->count();
+        $totalCheckpoints = (clone $query)->where('verbo', 'STEP')->count();
+        $firstActivity = (clone $query)->min('dataoperazione');
+        $lastActivity = (clone $query)->max('dataoperazione');
+
+        // Filtri opzionali sulla timeline
+        if ($request->boolean('has_error')) {
+            $query->where('codicehttp', '>=', 400);
+        }
+
+        if ($request->filled('event_type')) {
+            $type = $request->input('event_type');
+            if ($type === 'checkpoint') {
+                $query->where('verbo', 'STEP');
+            } elseif ($type === 'create') {
+                $query->where('verbo', 'post')->where('codicehttp', '<', 400);
+            } elseif ($type === 'update') {
+                $query->whereIn('verbo', ['put', 'patch'])->where('codicehttp', '<', 400);
+            } elseif ($type === 'delete') {
+                $query->where('verbo', 'delete')->where('codicehttp', '<', 400);
+            } elseif ($type === 'error') {
+                $query->where('codicehttp', '>=', 400);
+            }
+        }
+
+        if ($request->filled('search')) {
+            $query->textSearch($request->input('search'));
+        }
+
+        $logs = $query->orderBy('dataoperazione', $order)
+            ->orderBy('id', $order)
+            ->limit($limit)
+            ->get();
+
+        $events = $logs->map(function ($log) {
+            $enriched = $this->enrichWithUserData($log);
+            $classification = $this->classifyEvent($log);
+
+            return array_merge($enriched, [
+                'classification' => $classification,
+                'core_stack' => $log->core_stack,
+                'full_stack' => $log->full_stack,
+            ]);
+        });
+
+        return response()->json([
+            'subject' => [
+                'type' => $subjectType,
+                'id' => $subjectId,
+                'label' => class_basename($subjectType) . ' #' . $subjectId,
+            ],
+            'kpis' => [
+                'total_events' => $totalEvents,
+                'total_errors' => $totalErrors,
+                'total_rollbacks' => $totalRollbacks,
+                'total_checkpoints' => $totalCheckpoints,
+                'first_activity' => $firstActivity,
+                'last_activity' => $lastActivity,
+            ],
+            'events' => $events,
+        ]);
+    }
+
+    /**
+     * Alias per recupero Storyboard con parametri di rotta diretti.
+     *
+     * GET /api/log-operations/storyboard/{type}/{id}
+     */
+    public function storyboardByRoute(string $type, string|int $id, Request $request): JsonResponse
+    {
+        $request->merge([
+            'subject_type' => urldecode($type),
+            'subject_id' => $id,
+        ]);
+
+        return $this->storyboard($request);
+    }
+
+    /**
+     * Classifica la natura dell'evento per renderlo intuitivo nello Storyboard.
+     */
+    protected function classifyEvent(OperationLog $log): array
+    {
+        $verbo = strtolower($log->verbo);
+        $isError = $log->codicehttp >= 400 || !empty($log->error);
+        $isRollback = !empty($log->transaction_status) && str_contains($log->transaction_status, 'rolled_back');
+        $hasSteps = !empty($log->custom_traces['steps']);
+
+        if ($isError || $isRollback) {
+            return [
+                'category' => 'error',
+                'badge_color' => '#ef4444',
+                'badge_label' => $isRollback ? 'Rollback' : 'Errore ' . $log->codicehttp,
+                'title' => $isRollback
+                    ? 'Rollback transazione su ' . strtoupper($log->verbo) . ' ' . $log->rotta
+                    : 'Errore HTTP ' . $log->codicehttp . ($log->controllermethod ? ' in ' . class_basename($log->controllermethod) : ''),
+                'icon' => 'alert-triangle',
+            ];
+        }
+
+        if ($verbo === 'step' || ($hasSteps && $log->rotta === 'storyboard::checkpoint')) {
+            $stepTitle = $log->custom_traces['steps'][0]['label'] ?? 'Checkpoint';
+            return [
+                'category' => 'checkpoint',
+                'badge_color' => '#3b82f6',
+                'badge_label' => 'Checkpoint',
+                'title' => $stepTitle,
+                'icon' => 'flag',
+            ];
+        }
+
+        if ($verbo === 'post') {
+            return [
+                'category' => 'create',
+                'badge_color' => '#10b981',
+                'badge_label' => 'Creazione',
+                'title' => 'Creazione / Inserimento (' . strtoupper($log->verbo) . ')',
+                'icon' => 'plus-circle',
+            ];
+        }
+
+        if (in_array($verbo, ['put', 'patch'])) {
+            return [
+                'category' => 'update',
+                'badge_color' => '#f59e0b',
+                'badge_label' => 'Modifica',
+                'title' => 'Modifica entità (' . strtoupper($log->verbo) . ')',
+                'icon' => 'edit-3',
+            ];
+        }
+
+        if ($verbo === 'delete') {
+            return [
+                'category' => 'delete',
+                'badge_color' => '#8b5cf6',
+                'badge_label' => 'Eliminazione',
+                'title' => 'Eliminazione record (' . strtoupper($log->verbo) . ')',
+                'icon' => 'trash-2',
+            ];
+        }
+
+        return [
+            'category' => 'read',
+            'badge_color' => '#6b7280',
+            'badge_label' => strtoupper($log->verbo),
+            'title' => 'Accesso / Consultazione (' . strtoupper($log->verbo) . ')',
+            'icon' => 'eye',
+        ];
+    }
+
+    /**
      * Elenco dei codici HTTP presenti nel DB.
      *
      * GET /api/log-operations/http-codes

@@ -33,6 +33,10 @@ $routeGroup = function () {
     Route::get('/{id}', [LogOperationsController::class, 'show'])
         ->where('id', '[0-9]+');
 
+    // Storyboard del record (timeline polimorfica di vita delle entità)
+    Route::get('/storyboard', [LogOperationsController::class, 'storyboard']);
+    Route::get('/storyboard/{type}/{id}', [LogOperationsController::class, 'storyboardByRoute']);
+
     // Rotte Zero-Code Tracking Studio
     Route::prefix('studio')->group(function () {
         Route::get('/routes', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'routesDiscovery']);

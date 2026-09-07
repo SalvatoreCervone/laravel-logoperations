@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Facade;
  * @method static array getSteps()
  * @method static array getTraces()
  * @method static bool hasCustomTraces()
+ * @method static \SalvatoreCervone\LogOperations\LogOperationsManager setSubject(?\Illuminate\Database\Eloquent\Model $subject)
+ * @method static ?\Illuminate\Database\Eloquent\Model getSubject()
  * @method static void flush()
  * @method static \SalvatoreCervone\LogOperations\Services\StackTracer getStackTracer()
  *
