@@ -728,6 +728,9 @@ onMounted(async () => {
             </td>
             <td class="td--route" :title="log.rotta">
               {{ log.rotta }}
+              <span v-if="log.subject_type && log.subject_id" class="subject-chip" style="display: inline-block; margin-left: 6px; padding: 1px 6px; font-size: 10px; border-radius: 4px; background: rgba(59, 130, 246, 0.15); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3);">
+                📦 {{ log.subject_label || (log.subject_type.split('\\').pop() + ' #' + log.subject_id) }}
+              </span>
             </td>
             <td class="td--controller" :title="log.controllermethod">
               {{ log.controllermethod || '—' }}
@@ -742,6 +745,7 @@ onMounted(async () => {
               {{ formatDateDisplay(log.dataoperazione) }}
             </td>
             <td class="td--flags">
+              <span v-if="log.subject_type && log.subject_id" class="flag flag--storyboard" :title="'Entità collegata: ' + (log.subject_label || log.subject_type) + ' #' + log.subject_id" @click.stop="openDetail(log)">📖</span>
               <span v-if="log.error" class="flag flag--error" title="Contiene errore">🐛</span>
               <span v-if="log.transaction_status" class="flag flag--transaction" title="Transazione pendente">⚡</span>
               <span v-if="log.stack_trace && log.stack_trace.length" class="flag flag--stack" title="Stack disponibile">📚</span>

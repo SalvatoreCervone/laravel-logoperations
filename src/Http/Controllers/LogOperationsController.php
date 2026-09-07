@@ -74,6 +74,8 @@ class LogOperationsController extends Controller
                 $tableName . '.duration_ms',
                 $tableName . '.transaction_status',
                 $tableName . '.transaction_level',
+                $tableName . '.subject_type',
+                $tableName . '.subject_id',
             ])
             ->orderBy($tableName . '.dataoperazione', 'desc');
 
@@ -722,6 +724,13 @@ class LogOperationsController extends Controller
         } else {
             $data['user_data'] = null;
             $data['user_label'] = $log->user_id ? 'Utente #' . $log->user_id : 'Anonimo';
+        }
+
+        // Calcola label leggibile dell'entità target (subject) se presente
+        if ($log->subject_id && $log->subject_type) {
+            $data['subject_label'] = class_basename($log->subject_type) . ' #' . $log->subject_id;
+        } else {
+            $data['subject_label'] = null;
         }
 
         return $data;

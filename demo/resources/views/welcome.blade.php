@@ -1131,6 +1131,15 @@
                                 <span v-if="log.transaction_status === 'rollback'" class="tx-badge" data-tooltip="<strong>Transazione SQL non chiusa:</strong><br>A causa dell'errore, il pacchetto ha annullato (Rollback) automaticamente le modifiche per proteggere il database." title="Rollback automatico di sicurezza transazione SQL">
                                     ⚡ ROLLBACK DB
                                 </span>
+                                <!-- Badge Entità Collegata (Subject) -->
+                                <span v-if="log.subject_type && log.subject_id"
+                                      class="subject-tag"
+                                      style="display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; font-size: 11px; padding: 2px 8px; border-radius: 6px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.35); color: #93c5fd; cursor: pointer; font-weight: 600;"
+                                      @click.stop="openStoryboardForSubject(log.subject_type, log.subject_id)"
+                                      :data-tooltip="'<strong>Entità Collegata:</strong><br>' + (log.subject_label || (log.subject_type + ' #' + log.subject_id)) + '<br><em>Clicca per aprire la Storyboard di questa entità</em>'"
+                                      :title="'Clicca per aprire la Storyboard di ' + (log.subject_label || log.subject_type)">
+                                    📦 @{{ log.subject_label || (log.subject_type.split('\\').pop() + ' #' + log.subject_id) }}
+                                </span>
                             </td>
                             <td>
                                 <span :class="['badge', 'status-' + log.codicehttp]">
@@ -1143,7 +1152,16 @@
                             <td class="mono">@{{ log.duration_ms }} ms</td>
                             <td class="mono">@{{ formatDate(log.dataoperazione) }}</td>
                             <td>
-                                <button class="btn-view-detail" @click="openLogDetail(log)">🔍 Ispeziona</button>
+                                <div style="display: flex; gap: 6px; align-items: center;">
+                                    <button class="btn-view-detail" @click="openLogDetail(log)">🔍 Ispeziona</button>
+                                    <button v-if="log.subject_type && log.subject_id"
+                                            class="sim-btn btn-info"
+                                            style="padding: 4px 8px; font-size: 11px; white-space: nowrap; border-radius: 4px;"
+                                            @click.stop="openStoryboardForSubject(log.subject_type, log.subject_id)"
+                                            title="Apri Storyboard del record collegato">
+                                        📖 Storyboard
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                         <tr v-if="logs.length === 0">
@@ -1580,6 +1598,21 @@
                         <strong class="mono" style="margin-left: 8px;">@{{ activeModalLog.rotta }}</strong>
                     </div>
                     <button style="background: none; border: none; color: #fff; font-size: 18px; cursor: pointer;" @click="activeModalLog = null">✕</button>
+                </div>
+
+                <!-- Banner Entità Collegata (Subject) -->
+                <div v-if="activeModalLog.subject_type && activeModalLog.subject_id" 
+                     style="margin: 14px 20px 0; background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                    <div>
+                        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #93c5fd; font-weight: 700;">🎯 Entità Collegata (Subject):</div>
+                        <div style="font-size: 14px; font-weight: 600; color: #fff; margin-top: 2px;">
+                            📦 @{{ activeModalLog.subject_label || (activeModalLog.subject_type + ' #' + activeModalLog.subject_id) }}
+                            <span style="font-size: 11px; color: var(--text-muted); font-weight: normal; margin-left: 6px;">(@{{ activeModalLog.subject_type }})</span>
+                        </div>
+                    </div>
+                    <button class="sim-btn btn-info" style="padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 6px; white-space: nowrap; border-radius: 6px;" @click="openStoryboardForSubject(activeModalLog.subject_type, activeModalLog.subject_id); activeModalLog = null">
+                        📖 Apri Storyboard Completa &rarr;
+                    </button>
                 </div>
 
                 <div class="modal-content">
@@ -2150,6 +2183,17 @@
                     }
                 }
 
+                async function openStoryboardForSubject(subjectType, subjectId) {
+                    if (activeModalLog.value) {
+                        activeModalLog.value = null;
+                    }
+                    await fetchOrders();
+                    selectedOrderId.value = subjectId;
+                    currentTab.value = 'storyboard';
+                    await fetchStoryboard();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+
                 onMounted(() => {
                     fetchLogs();
                     fetchStudioData();
@@ -2173,7 +2217,7 @@
                     ordersList, selectedOrderId, storyboardData, storyboardLoading,
                     storyboardCategory, storyboardSearch, storyboardSort, expandedTimelineEvents,
                     fetchOrders, fetchStoryboard, toggleStoryboardSort, toggleTimelineEvent,
-                    filteredStoryboardEvents, simulateOrderAction
+                    filteredStoryboardEvents, simulateOrderAction, openStoryboardForSubject
                 };
             }
         }).mount('#app');

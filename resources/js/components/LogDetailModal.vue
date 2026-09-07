@@ -12,12 +12,13 @@
  * - Step e trace personalizzati (LogOperations::step() / trace())
  */
 import { ref, computed } from 'vue'
+import LogStoryboard from './LogStoryboard.vue'
 
 const props = defineProps({
   log: { type: Object, required: true },
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'open-storyboard'])
 
 // Stack view toggle: 'core' o 'full'
 const stackView = ref('core')
@@ -48,6 +49,7 @@ const hasParams = computed(() => {
 
 const hasError = computed(() => !!logData.value.error)
 const hasStack = computed(() => coreStack.value.length > 0 || fullStack.value.length > 0)
+const hasSubject = computed(() => !!(logData.value.subject_type && logData.value.subject_id))
 const hasCustom = computed(() => {
   const ct = logData.value.custom_traces
   return ct && (ct.steps?.length || ct.traces?.length || ct.db_callers?.length)
@@ -161,6 +163,13 @@ function formatDate(isoStr) {
       >
         🏷️ Traces
       </button>
+      <button
+        v-if="hasSubject"
+        :class="['modal-tab', { active: activeTab === 'storyboard' }]"
+        @click="activeTab = 'storyboard'"
+      >
+        📖 Storyboard
+      </button>
     </div>
 
     <!-- TAB CONTENT -->
@@ -200,6 +209,20 @@ function formatDate(isoStr) {
           <div class="info-item">
             <span class="info-label">Applicazione</span>
             <span class="info-value">{{ logData.nomeapplicazione || '—' }}</span>
+          </div>
+
+          <!-- SUBJECT TARGET INFO -->
+          <div v-if="hasSubject" class="info-item info-item--full" style="grid-column: 1 / -1; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 12px 14px; margin-top: 6px; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+            <div>
+              <span class="info-label" style="color: #93c5fd; font-weight: 700; font-size: 11px;">🎯 ENTITÀ COLLEGATA (SUBJECT)</span>
+              <div class="info-value" style="font-weight: 600; color: #fff; margin-top: 4px; font-size: 14px;">
+                📦 {{ logData.subject_label || (logData.subject_type + ' #' + logData.subject_id) }}
+                <span style="font-size: 11px; color: #94a3b8; font-weight: normal; margin-left: 6px;">({{ logData.subject_type }})</span>
+              </div>
+            </div>
+            <button class="modal-tab active" style="margin: 0; padding: 8px 14px; font-size: 12px; cursor: pointer; border-radius: 6px; white-space: nowrap;" @click="activeTab = 'storyboard'">
+              📖 Apri Storyboard Completa &rarr;
+            </button>
           </div>
         </div>
 
@@ -346,6 +369,14 @@ function formatDate(isoStr) {
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- STORYBOARD TAB -->
+      <div v-if="activeTab === 'storyboard' && hasSubject" class="tab-storyboard" style="padding: 6px 0;">
+        <LogStoryboard
+          :subject-type="logData.subject_type"
+          :subject-id="logData.subject_id"
+        />
       </div>
     </div>
   </div>
