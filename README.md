@@ -643,6 +643,59 @@ Tutti gli allarmi sono protetti da un rate-limiting intelligente basato su Cache
 
 ---
 
+## 🛡️ Retention Policy, Salvaguardia Storyboard & Manutenzione
+
+LogOperations non è un semplice file di log temporaneo, ma un **Audit Trail permanente e Storyboard di vita delle entità aziendali** (Ordini, Fatture, Ticket). Per questo motivo adotta una **politica conservativa e ultra-sicura**:
+
+### 1. Salvaguardia Assoluta della Storyboard
+- **Disabilitata di default**: la cancellazione automatica dei log è disattivata al 100% (`retention.enabled => false`).
+- **Scudo Storyboard attivo**: qualsiasi record collegato a un'entità business (`subject_type` o `subject_id` non nulli) è **rigorosamente protetto ed escluso da qualsiasi operazione di pulizia**.
+- **Scudo Errori attivo**: tutti i record con esito anomalo (`HTTP >= 400`, rollback o eccezioni) rimangono intatti nel database per audit forensi.
+
+### 2. Pulizia delle Regole di Sessione Scadute
+Quando imposti sessioni a tempo per monitorare un utente (es. 15 minuti), la regola termina la sua validità una volta superato l'orario. Il comando rimuove le sole righe scadute dalla tabella `log_operazioni_regole` **senza toccare minimamente i log operativi**, che rimangono salvati per sempre in `log_operazioni`:
+
+```bash
+# Rimuove le sole sessioni/regole scadute:
+php artisan logoperations:clear-expired-rules
+
+# Simulazione (dry-run):
+php artisan logoperations:clear-expired-rules --dry-run
+```
+
+Può essere pianificato nello scheduler:
+```php
+Schedule::command('logoperations:clear-expired-rules')->daily();
+```
+
+### 3. Pruning Conservativo per Grandi Volumi
+In ambienti ad altissimo traffico (milioni di richieste HTTP al giorno) in cui si desideri alleggerire le sole letture generiche anonime obsolete:
+
+```bash
+# Esegue una simulazione con riepilogo dettagliato dei record protetti:
+php artisan logoperations:prune --days=180 --dry-run
+
+# Pulizia manuale sicura con conferma interattiva (Storyboards ed errori sempre protetti):
+php artisan logoperations:prune --days=180
+
+# Specificando una finestra in ore:
+php artisan logoperations:prune --hours=72 --force
+```
+
+### 4. Configurazione `.env`
+```env
+# Retention disabilitata di default
+LOG_OPERATIONS_RETENTION_ENABLED=false
+
+# Giorni di conservazione predefiniti se abilitata
+LOG_OPERATIONS_RETENTION_DAYS=365
+
+# Dimensione chunk per cancellazioni sicure senza lock
+LOG_OPERATIONS_PRUNE_CHUNK_SIZE=1000
+```
+
+---
+
 ## 🧪 Playground & Demo Live Incorporata (`demo/`)
 
 All'interno della cartella `demo/` è presente un'applicazione Laravel pronta all'uso con database SQLite, dati di test (Mario Rossi, Luigi Bianchi) e un simulatore interattivo.

@@ -4,6 +4,7 @@ namespace SalvatoreCervone\LogOperations\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\MassPrunable;
 use Illuminate\Support\Str;
 
 /**
@@ -16,6 +17,8 @@ use Illuminate\Support\Str;
  */
 class OperationRule extends Model
 {
+    use MassPrunable;
+
     protected $guarded = ['id'];
 
     protected $casts = [
@@ -110,5 +113,13 @@ class OperationRule extends Model
         $cleanUri = trim($uri, '/');
 
         return Str::is($pattern, $cleanUri);
+    }
+
+    /**
+     * Query per il pruning delle sole regole temporanee scadute.
+     */
+    public function prunable(): Builder
+    {
+        return static::whereNotNull('expires_at')->where('expires_at', '<', now());
     }
 }

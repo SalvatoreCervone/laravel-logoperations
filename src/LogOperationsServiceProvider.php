@@ -107,6 +107,8 @@ class LogOperationsServiceProvider extends ServiceProvider
             $this->commands([
                 \SalvatoreCervone\LogOperations\Console\Commands\ForgetUserCommand::class,
                 \SalvatoreCervone\LogOperations\Console\Commands\CheckAlertsCommand::class,
+                \SalvatoreCervone\LogOperations\Console\Commands\PruneLogsCommand::class,
+                \SalvatoreCervone\LogOperations\Console\Commands\ClearExpiredRulesCommand::class,
             ]);
         }
 

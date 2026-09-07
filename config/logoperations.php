@@ -444,6 +444,39 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Retention Policy, Salvaguardia Storyboard & Manutenzione
+    |--------------------------------------------------------------------------
+    |
+    | LogOperations funge da Audit Trail di sistema: per default la cancellazione
+    | automatica è DISABILITATA ('enabled' => false).
+    | Se abilitata o eseguita manualmente via 'php artisan logoperations:prune',
+    | tutti i record facenti parte di una Storyboard (subject) ed eventuali errori
+    | sono rigorosamente protetti ed esclusi da qualsiasi cancellazione.
+    |
+    */
+
+    'retention' => [
+        // Disabilitata di default per massima sicurezza dei dati storici
+        'enabled' => env('LOG_OPERATIONS_RETENTION_ENABLED', false),
+
+        // Giorni di conservazione predefiniti se abilitata
+        'days' => (int) env('LOG_OPERATIONS_RETENTION_DAYS', 365),
+
+        // Salvaguardia Storyboard: esclude SEMPRE qualsiasi record legato a un'entità
+        'preserve_storyboards' => true,
+
+        // Salvaguardia Errori: esclude SEMPRE errori 4xx/5xx ed eccezioni
+        'preserve_errors' => true,
+
+        // Salvaguardia Scritture: esclude richieste di mutazione dati (POST, PUT, DELETE)
+        'preserve_mutations' => true,
+
+        // Dimensione dei blocchi per cancellazioni sicure senza lock del DB
+        'chunk_size' => (int) env('LOG_OPERATIONS_PRUNE_CHUNK_SIZE', 1000),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Nome Applicazione
     |--------------------------------------------------------------------------
     |
