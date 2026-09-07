@@ -27,10 +27,14 @@ class LogOperationsServiceProvider extends ServiceProvider
             );
         });
 
+        // Registrazione singleton del PrivacyManager
+        $this->app->singleton(\SalvatoreCervone\LogOperations\Services\PrivacyManager::class);
+
         // Registrazione singleton del servizio LogOperations
         $this->app->singleton(LogOperationsManager::class, function ($app) {
             return new LogOperationsManager(
-                $app->make(StackTracer::class)
+                $app->make(StackTracer::class),
+                $app->make(\SalvatoreCervone\LogOperations\Services\PrivacyManager::class)
             );
         });
         $this->app->alias(LogOperationsManager::class, 'logoperations');
@@ -82,6 +86,13 @@ class LogOperationsServiceProvider extends ServiceProvider
         $router = $this->app->make(Router::class);
         $router->aliasMiddleware('log.operations', LogOperationsMiddleware::class);
         $router->aliasMiddleware('logoperations', LogOperationsMiddleware::class);
+
+        // Registrazione comandi console
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                \SalvatoreCervone\LogOperations\Console\Commands\ForgetUserCommand::class,
+            ]);
+        }
 
         // Attivazione dei proxy per i metodi/servizi tracciati dinamicamente
         try {

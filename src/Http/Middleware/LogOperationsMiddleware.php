@@ -12,6 +12,7 @@ use SalvatoreCervone\LogOperations\Models\OperationLog;
 use SalvatoreCervone\LogOperations\Jobs\ProcessOperationLog;
 use SalvatoreCervone\LogOperations\Services\StackTracer;
 use SalvatoreCervone\LogOperations\Services\RuleEngine;
+use SalvatoreCervone\LogOperations\Services\PrivacyManager;
 use SalvatoreCervone\LogOperations\LogOperationsManager;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -32,12 +33,18 @@ class LogOperationsMiddleware
     protected StackTracer $stackTracer;
     protected LogOperationsManager $manager;
     protected RuleEngine $ruleEngine;
+    protected PrivacyManager $privacyManager;
 
-    public function __construct(StackTracer $stackTracer, LogOperationsManager $manager, RuleEngine $ruleEngine)
-    {
+    public function __construct(
+        StackTracer $stackTracer,
+        LogOperationsManager $manager,
+        RuleEngine $ruleEngine,
+        ?PrivacyManager $privacyManager = null
+    ) {
         $this->stackTracer = $stackTracer;
         $this->manager = $manager;
         $this->ruleEngine = $ruleEngine;
+        $this->privacyManager = $privacyManager ?: app(PrivacyManager::class);
     }
 
     public function handle(Request $request, Closure $next): Response
@@ -129,7 +136,10 @@ class LogOperationsMiddleware
             $parametriPost = $request->all() ? ['post' => $request->all()] : [];
             $parametriQuery = $request->query() ? ['querystring' => $request->query()] : [];
             $parametriRoute = !empty($routeParams) ? ['route' => $routeParams] : [];
-            $parametri = array_merge($parametriPost, $parametriQuery, $parametriRoute);
+            $parametriHeaders = config('logoperations.privacy.log_headers', false)
+                ? ['headers' => $this->privacyManager->sanitizeHeaders($request->headers->all())]
+                : [];
+            $parametri = array_merge($parametriPost, $parametriQuery, $parametriRoute, $parametriHeaders);
             $parametri = !empty($parametri) ? $this->maskSensitiveFields($parametri) : null;
 
             // Controller e metodo
@@ -165,6 +175,11 @@ class LogOperationsMiddleware
             // Stack trace a 2 livelli calibrato sul livello di tracciamento
             $stackTrace = $this->captureStack($response, $statusCode, $route, $customTraces, $ruleEvaluation['stack_level'] ?? null);
 
+            $clientIp = $request->ip();
+            if (config('logoperations.privacy.anonymize_ip', false)) {
+                $clientIp = $this->privacyManager->anonymizeIp($clientIp);
+            }
+
             // Salvataggio del record di log
             $logData = [
                 'user_id' => $userId,
@@ -175,7 +190,7 @@ class LogOperationsMiddleware
                 'verbo' => $verbo,
                 'controllermethod' => $controllerMethod,
                 'codicehttp' => $statusCode,
-                'client_ip' => $request->ip(),
+                'client_ip' => $clientIp,
                 'dataoperazione' => now(),
                 'parametri' => $parametri,
                 'error' => $errorMessage,
@@ -490,28 +505,7 @@ class LogOperationsMiddleware
      */
     protected function maskSensitiveFields(array $data): array
     {
-        $maskedFields = config('logoperations.mask_fields', []);
-
-        if (empty($maskedFields)) {
-            return $data;
-        }
-
-        // Converti in minuscolo per confronto case-insensitive
-        $maskedFieldsLower = array_map('strtolower', $maskedFields);
-
-        return $this->recursiveMask($data, $maskedFieldsLower);
-    }
-
-    protected function recursiveMask(array $data, array $maskedFields): array
-    {
-        foreach ($data as $key => $value) {
-            if (is_array($value)) {
-                $data[$key] = $this->recursiveMask($value, $maskedFields);
-            } elseif (in_array(strtolower((string) $key), $maskedFields)) {
-                $data[$key] = '***MASKED***';
-            }
-        }
-        return $data;
+        return $this->privacyManager->maskSensitiveData($data);
     }
 
     /*

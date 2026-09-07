@@ -3,6 +3,7 @@
 namespace SalvatoreCervone\LogOperations;
 
 use SalvatoreCervone\LogOperations\Services\StackTracer;
+use SalvatoreCervone\LogOperations\Services\PrivacyManager;
 
 /**
  * Manager centrale per il tracciamento manuale delle operazioni.
@@ -31,9 +32,14 @@ class LogOperationsManager
      */
     protected ?\Illuminate\Database\Eloquent\Model $subject = null;
 
+    protected PrivacyManager $privacyManager;
+
     public function __construct(
-        protected StackTracer $stackTracer
-    ) {}
+        protected StackTracer $stackTracer,
+        ?PrivacyManager $privacyManager = null
+    ) {
+        $this->privacyManager = $privacyManager ?: app(PrivacyManager::class);
+    }
 
     /**
      * Associa manualmente un'entità target (subject) al log della richiesta corrente.
@@ -254,5 +260,34 @@ class LogOperationsManager
     public function getStackTracer(): StackTracer
     {
         return $this->stackTracer;
+    }
+
+    /**
+     * Accesso al PrivacyManager per operazioni di conformità GDPR e anonimizzazione.
+     */
+    public function getPrivacyManager(): PrivacyManager
+    {
+        return $this->privacyManager;
+    }
+
+    /**
+     * Esegue il Diritto all'Oblio (GDPR Art. 17).
+     *
+     * @param int|string $userId Identificativo utente
+     * @param string|null $userType Classe modello utente (es. 'App\Models\User')
+     * @param bool $anonymize True per ripulire i dati PII ma preservare metadati tecnici, False per cancellare fisicamente
+     * @return int Numero di record coinvolti
+     */
+    public function forgetUser(int|string $userId, ?string $userType = null, bool $anonymize = false): int
+    {
+        return $this->privacyManager->forgetUser($userId, $userType, $anonymize);
+    }
+
+    /**
+     * Anonimizza un indirizzo IP secondo le impostazioni di privacy.
+     */
+    public function anonymizeIp(?string $ip, ?string $mask = null): ?string
+    {
+        return $this->privacyManager->anonymizeIp($ip, $mask);
     }
 }

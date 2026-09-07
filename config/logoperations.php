@@ -290,7 +290,15 @@ return [
     'mask_fields' => [
         'password',
         'password_confirmation',
+        'current_password',
+        'new_password',
+        'old_password',
+        'pin',
+        'passcode',
         'token',
+        'access_token',
+        'refresh_token',
+        'auth_token',
         'secret',
         'authorization',
         'card_number',
@@ -301,6 +309,42 @@ return [
         'card_token',
         'api_key',
         'api_secret',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Privacy, GDPR & Anonimizzazione Dati (Regolamento UE 2016/679)
+    |--------------------------------------------------------------------------
+    |
+    | Opzioni per la conformità alla normativa europea sulla protezione dei dati.
+    | Di default, l'anonimizzazione IP è disabilitata per consentire audit di
+    | sicurezza completi, ma può essere attivata con LOG_OPERATIONS_ANONYMIZE_IP=true.
+    |
+    */
+
+    'privacy' => [
+
+        // Se abilitato, maschera l'ultimo ottetto degli indirizzi IPv4 (es. 192.168.1.xxx)
+        // e la seconda metà degli indirizzi IPv6 rendendoli dati non identificabili.
+        'anonymize_ip' => env('LOG_OPERATIONS_ANONYMIZE_IP', false),
+
+        // Valore o maschera per l'ultimo blocco ('xxx' oppure '0')
+        'anonymize_ip_mask' => env('LOG_OPERATIONS_IP_MASK', 'xxx'),
+
+        // Se abilitato, registra anche gli header HTTP della richiesta (sanitizzati)
+        'log_headers' => env('LOG_OPERATIONS_LOG_HEADERS', false),
+
+        // Header HTTP sensibili mascherati automaticamente
+        'mask_headers' => [
+            'authorization',
+            'cookie',
+            'set-cookie',
+            'x-xsrf-token',
+            'x-csrf-token',
+            'php-auth-pw',
+            'php-auth-user',
+        ],
+
     ],
 
     /*

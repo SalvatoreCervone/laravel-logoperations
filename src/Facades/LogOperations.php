@@ -17,6 +17,9 @@ use Illuminate\Support\Facades\Facade;
  * @method static ?\Illuminate\Database\Eloquent\Model getSubject()
  * @method static void flush()
  * @method static \SalvatoreCervone\LogOperations\Services\StackTracer getStackTracer()
+ * @method static \SalvatoreCervone\LogOperations\Services\PrivacyManager getPrivacyManager()
+ * @method static int forgetUser(int|string $userId, ?string $userType = null, bool $anonymize = false)
+ * @method static ?string anonymizeIp(?string $ip, ?string $mask = null)
  *
  * @see \SalvatoreCervone\LogOperations\LogOperationsManager
  */

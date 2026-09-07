@@ -34,6 +34,15 @@ class OperationLog extends Model
 
     protected $guarded = ['id', 'created_at', 'updated_at'];
 
+    protected static function booted(): void
+    {
+        static::creating(function ($log) {
+            if (empty($log->nomeapplicazione)) {
+                $log->nomeapplicazione = config('logoperations.app_name', 'laravel');
+            }
+        });
+    }
+
     /**
      * Cast nativi per i campi JSON e datetime.
      */
