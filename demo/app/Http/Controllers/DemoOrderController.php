@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Order;
 use App\Services\OrderService;
 use App\Services\PaymentService;
 use SalvatoreCervone\LogOperations\Facades\LogOperations;
@@ -50,13 +51,33 @@ class DemoOrderController extends Controller
             return $paymentService->processPayment($totale, 'carta_credito');
         }, 'Autorizzazione transazione Gateway Pagamento');
 
+        // 5. Creazione ed associazione del Modello Eloquent Order alla Storyboard
+        $orderCount = Order::count() + 1;
+        $order = Order::create([
+            'reference' => 'ORD-2026-' . str_pad($orderCount, 3, '0', STR_PAD_LEFT),
+            'customer_name' => Auth::user()?->name ?: 'Cliente #' . $userId,
+            'amount' => $totale,
+            'status' => 'confirmed',
+        ]);
+
+        // Associa esplicitamente l'entità target al log dell'operazione corrente
+        LogOperations::setSubject($order);
+
+        // Aggiunge un checkpoint applicativo direttamente sulla storyboard del modello
+        $order->logStep('Ordine confermato e registrato nel database', [
+            'articoli' => count($articoli),
+            'totale' => $totale,
+            'gateway' => 'carta_credito',
+        ]);
+
         return response()->json([
             'success'   => true,
-            'ordine_id' => 'ORD-' . rand(10000, 99999),
+            'order'     => $order,
+            'ordine_id' => $order->reference,
             'totale'    => $totale,
             'sconto'    => $scontoInfo,
             'pagamento' => $pagamento,
-            'message'   => 'Ordine elaborato con successo dal Controller!',
+            'message'   => "Ordine {$order->reference} elaborato con successo e registrato nella Storyboard!",
         ]);
     }
 }

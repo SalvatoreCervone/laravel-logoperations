@@ -6,18 +6,40 @@ Pacchetto Composer Laravel per il **tracciamento, monitoraggio e analisi delle o
 
 ## 🚀 Caratteristiche Principali
 
+- 🖥️ **Dashboard Web Standalone Integrata (`/logoperations`)**:
+  - Interfaccia web moderna ad alta risoluzione (tema scuro, Vanilla CSS + Vue 3 standalone) accessibile direttamente via browser.
+  - **Zero dipendenze npm / Vite**: funziona istantaneamente su qualsiasi installazione Laravel senza dover configurare build tools frontend.
+  - **Paginazione Server-Side Reale**: navigazione deterministica `(dataoperazione DESC, id DESC)`, indice composito DB ad alte prestazioni e selettore `per_page` (15, 20, 25, 50, 100).
+- 📥 **Export Massivo Streaming (O(1) Memoria)**:
+  - Download di grandi moli di log in formato **CSV** (con UTF-8 BOM per compatibilità Microsoft Excel) o **JSON**.
+  - Utilizzo di generatori e streaming HTTP lazily-loaded per esportare centinaia di migliaia di record con consumo di RAM costante e minimo.
+  - Preservazione di tutti i filtri di ricerca applicati (verbi, status HTTP, utenti, date, slow query, rollback).
+- 🚨 **Sistema di Alerting Multi-Canale & Anti-Flood**:
+  - Notifiche in tempo reale su 4 canali: **Email**, **Slack** (rich blocks), **Discord** (rich embeds) e **Webhook generico** (con firma crittografica HMAC).
+  - Allarme immediato su **Rollback di transazioni SQL pendenti** lasciate aperte dal codice applicativo.
+  - Rilevamento automatico di **picchi del tasso di errore** (> soglia % su finestra temporale) tramite comando Artisan `logoperations:check-alerts`.
+  - Meccanismo di **throttle anti-flood** basato su cache Laravel per prevenire spam e saturazione dei canali.
+- 📖 **Storyboard del Record (Timeline di Vita & Audit Trail)**:
+  - Tracciamento cronologico e deterministico del ciclo di vita dei modelli Eloquent (`Order`, `Invoice`, `Ticket`, ecc.) tramite Route Model Binding e trait `HasOperationLogs`.
+  - Componente Vue autonomo `<LogStoryboard />` e API REST dedicate per visualizzare l'intera storia di un'entità con classificazione eventi (`create`, `update`, `delete`, `checkpoint`, `error`).
 - 🎛️ **Centro di Controllo Zero-Code (Tracking Studio)**:
   - 🗺️ **Studio Rotte**: scansione automatica delle rotte web e API con attivazione/disattivazione permanente a 1 click (ON/OFF) e selezione del livello di dettaglio.
-  - ⚙️ **Studio Funzioni**: scansione delle classi di servizio in `app/` e intercettazione dinamica dei metodi PHP (parametri, durata in ms, eccezioni) via Service Container senza modificare i file sorgente.
-  - 👤 **Monitor Utente Live a Tempo**: tracciamento mirato di un singolo utente per una finestra temporale (5, 15, 30, 60 minuti) con countdown live e disattivazione automatica, ideale per l'assistenza clienti.
-- 🔐 **Supporto Utente Polimorfico** (`nullableMorphs('user')`): supporta qualsiasi modello autenticabile (`User`, `Admin`, `Customer`, ecc.).
+  - ⚙️ **Studio Funzioni & Dynamic Proxy**: scansione delle classi di servizio in `app/` e intercettazione dei metodi con **piena compatibilità di tipo per la Dependency Injection** (`ProxyClassGenerator`).
+  - 🏷️ **Attributo PHP 8 `#[Traceable]`**: tracciamento dichiarativo a zero configurazione DB su classi o singoli metodi.
+  - 👤 **Monitor Utente Live a Tempo**: tracciamento mirato di un singolo utente per una finestra temporale (5, 15, 30, 60 minuti) con countdown live e disattivazione automatica.
+- ⚡ **Ottimizzazione Prestazioni & Scalabilità**:
+  - **Terminable Middleware**: la scrittura su DB avviene *dopo* l'invio della risposta HTTP al client (`terminate()`), azzerando la latenza percepita.
+  - **Logging Asincrono su Coda**: supporto per driver di coda Laravel (`ProcessOperationLog`) con tentativi, backoff, fallback su file di emergenza e alert email automatico su soglia di fallimenti.
+  - **Campionamento Richieste (Sampling Rate)**: configurazione da 0 a 100% per le chiamate di successo (gli errori HTTP >= 400 sono sempre tracciati al 100%).
+- 🛡️ **Privacy, Conformità GDPR & Diritto all'Oblio**:
+  - **Anonimizzazione Indirizzi IP**: mascheramento configurabile di IPv4 (`192.168.1.xxx` o `192.168.1.0`) e IPv6.
+  - **Sanitizzazione Header & Token**: mascheramento automatico di header di autorizzazione (`Authorization`, `Cookie`, `X-XSRF-TOKEN`, credenziali basic auth).
+  - **GDPR Art. 17 (Right to be Forgotten)**: cancellazione fisica o soft scrubbing (anonimizzazione PII mantenendo metadati tecnici) via Facade e comando Artisan `php artisan logoperations:forget-user`.
 - 🔄 **Rollback Ciclico Transazioni**: rileva transazioni SQL rimaste aperte a causa di errori e le annulla automaticamente fino a livello 0, garantendo l'integrità del database.
 - 📚 **Stack Trace a 2 Livelli**:
   - **🎯 Livello Core**: isola e mostra solo i file del progetto (cartella `app/`), filtrando il rumore del framework.
   - **🔍 Livello Completo**: visualizza l'intera catena di chiamate incluse librerie vendor e framework.
-- 🛡️ **Mascheramento Dati Sensibili**: offuscamento automatico di password, token, carte di credito e chiavi API.
-- ⏱️ **Misurazione Precisa della Latenza**: durata di ogni chiamata registrata in millisecondi con indicatori di lentezza.
-- 📊 **Dashboard & Registro Log Vue 3**: visualizzatore moderno con statistiche KPI, filtri rapidi, query builder avanzato e drawer laterale di ispezione.
+- 📊 **Componenti Frontend Vue 3**: libreria modulare di componenti pronti all'uso per SPA separate o progetti Inertia.
 
 ---
 
@@ -31,11 +53,20 @@ composer require salvatorecervone/logoperations
 
 Il `LogOperationsServiceProvider` e la facade `LogOperations` vengono registrati automaticamente tramite package auto-discovery.
 
-### 2. Pubblicare configurazione e migrazioni
+### 2. Pubblicare configurazione, migrazioni e viste
 
 ```bash
+# Configurazione
 php artisan vendor:publish --tag=logoperations-config
+
+# Migrazioni DB
 php artisan vendor:publish --tag=logoperations-migrations
+
+# Viste Blade della Dashboard autonoma (opzionale)
+php artisan vendor:publish --tag=logoperations-views
+
+# Componenti Vue 3 per SPA (opzionale)
+php artisan vendor:publish --tag=logoperations-vue
 ```
 
 ### 3. Eseguire le migrazioni
@@ -45,16 +76,8 @@ php artisan migrate
 ```
 
 Verranno create le tabelle:
-- `log_operazioni`: archivio storico di tutte le operazioni eseguite.
+- `log_operazioni`: archivio storico con supporto polimorfico (`user` e `subject`) e indice composito per la paginazione `(dataoperazione, id)`.
 - `log_operazioni_regole`: regole dinamiche configurate da interfaccia per rotte, metodi e sessioni utente.
-
-### 4. Pubblicare i componenti Vue 3 (opzionale)
-
-```bash
-php artisan vendor:publish --tag=logoperations-vue
-```
-
-I componenti verranno copiati in `resources/js/vendor/logoperations/`.
 
 ---
 
@@ -104,7 +127,25 @@ return [
     'mask_fields' => ['password', 'password_confirmation', 'token', 'secret', 'authorization', 'credit_card'],
 
     // Campi ricercabili per il modello utente
-    'user_search_fields' => ['name', 'cognome', 'email'],
+    // Configurazione Allarmi e Notifiche Multi-Canale
+    'alerts' => [
+        'enabled' => env('LOG_OPERATIONS_ALERTS_ENABLED', false),
+        'channels' => ['mail', 'slack', 'discord', 'webhook'],
+        'mail' => ['to' => env('LOG_OPERATIONS_ALERT_EMAIL', null)],
+        'slack' => ['webhook_url' => env('LOG_OPERATIONS_SLACK_WEBHOOK', null)],
+        'discord' => ['webhook_url' => env('LOG_OPERATIONS_DISCORD_WEBHOOK', null)],
+        'webhook' => [
+            'url' => env('LOG_OPERATIONS_ALERT_WEBHOOK', null),
+            'secret' => env('LOG_OPERATIONS_ALERT_WEBHOOK_SECRET', null),
+        ],
+        'throttle_minutes' => 15,
+        'notify_on_rollback' => true,
+        'error_rate' => [
+            'window_minutes' => 5,
+            'threshold_percentage' => 10.0,
+            'min_requests' => 20,
+        ],
+    ],
 
     // Nome identificativo dell'applicazione (per ambienti multi-app)
     'app_name' => env('LOG_OPERATIONS_APP_NAME', env('APP_NAME', 'laravel')),
@@ -331,10 +372,274 @@ import { LogOperationsViewer } from './vendor/logoperations'
 | Componente | Descrizione |
 | :--- | :--- |
 | `LogOperationsViewer` | Interfaccia unificata con navigazione tra Registro Log e Tracking Studio |
+| `LogStoryboard` | Timeline interattiva e audit trail verticale per singoli record/modelli Eloquent |
 | `LogTrackingStudio` | Centro di controllo zero-code (Studio Rotte, Studio Funzioni, Monitor Utente) |
 | `LogQueryBuilder` | Costruttore di query avanzate con gruppi logici AND / OR |
-| `LogDetailModal` | Drawer/modal con ispezione del payload, transazioni e Stack Trace |
+| `LogDetailModal` | Drawer/modal con ispezione del payload, transazioni e Stack Trace a 2 livelli |
 | `LogStatsBar` | Barra riassuntiva dei KPI con tassi di errore e tempi medi |
+
+---
+
+## 🖥️ Dashboard Web Standalone (`/logoperations`)
+
+Il pacchetto include una **Dashboard Web autonoma completa**, accessibile via browser senza dover compilare o includere asset npm/Vite nel progetto host:
+
+```bash
+# Apri nel browser:
+http://tuodominio.test/logoperations
+```
+
+- **Zero setup frontend**: layout dark mode responsivo in Vanilla CSS e runtime Vue 3 servito via CDN.
+- **Paginazione Server-Side Reale**:
+  - Ordinamento deterministico garantito `(dataoperazione DESC, id DESC)`.
+  - Indice composito di database per query ad altissima velocità.
+  - Selettore elementi per pagina (`15, 20, 25, 50, 100`) e salto rapido a qualsiasi pagina.
+  - Mantenimento automatico di tutti i filtri di ricerca durante la navigazione.
+- **Configurazione percorso e middleware** in `config/logoperations.php`:
+  ```php
+  'dashboard' => [
+      'enabled' => env('LOG_OPERATIONS_DASHBOARD_ENABLED', true),
+      'route' => env('LOG_OPERATIONS_DASHBOARD_ROUTE', 'logoperations'),
+      'middleware' => ['web'],
+      'per_page' => 20,
+      'per_page_options' => [15, 20, 25, 50, 100],
+  ],
+  ```
+
+---
+
+## 📖 Storyboard del Record & Audit Trail
+
+La Storyboard ricostruisce la **timeline completa di vita** di qualsiasi entità del tuo dominio applicativo (ordini, fatture, ticket, utenti).
+
+### 1. Aggiungere il Trait al Modello Eloquent:
+```php
+use Illuminate\Database\Eloquent\Model;
+use SalvatoreCervone\LogOperations\Traits\HasOperationLogs;
+
+class Order extends Model
+{
+    use HasOperationLogs;
+}
+```
+
+### 2. Rilevamento Automatico tramite Route Model Binding:
+Se una rotta utilizza Route Model Binding (es. `/api/ordini/{order}`), il middleware associa automaticamente il modello come target (`subject`) del log:
+```php
+Route::put('/ordini/{order}', [OrderController::class, 'update'])->middleware('log.operations');
+```
+
+### 3. Checkpoint Applicativi ed Esplorazione Storyboard:
+```php
+// Registra un checkpoint di business collegato all'ordine:
+$order->logStep('Autorizzazione pagamento ricevuta da Stripe', ['payment_id' => 'ch_123']);
+
+// Recupera l'intera storia cronologica del record:
+$timeline = $order->storyboard();
+```
+
+### 4. Componente Vue Dedicato:
+```vue
+<script setup>
+import { LogStoryboard } from './vendor/logoperations'
+</script>
+
+<template>
+  <LogStoryboard
+    :subject-id="order.id"
+    subject-type="App\Models\Order"
+    api-base="/api/logoperations"
+  />
+</template>
+```
+
+---
+
+## 🏷️ Tracciamento Dichiarativo con Attributo PHP 8 (`#[Traceable]`)
+
+Oltre al pannello zero-code, puoi tracciare classi di servizio e metodi in modo dichiarativo tramite l'attributo nativo `#[Traceable]`:
+
+```php
+use SalvatoreCervone\LogOperations\Attributes\Traceable;
+
+// Traccia tutti i metodi pubblici della classe:
+#[Traceable]
+class PaymentGatewayService
+{
+    public function charge(Order $order): bool { ... }
+}
+
+// Oppure traccia solo singoli metodi:
+class OrderService
+{
+    #[Traceable(label: 'Calcolo Giudiziario e Totali', level: 'core')]
+    public function calcolaTotale(Order $order): float
+    {
+        return 99.50;
+    }
+}
+```
+
+- **Piena compatibilità con la Dependency Injection**: le classi decorate o tracciate vengono intercettate tramite sottoclassi dinamiche generate a runtime (`ProxyClassGenerator`). L'istanza generata soddisfa sempre `$proxy instanceof OrderService === true`, eliminando qualsiasi `TypeError` nei controller.
+
+---
+
+## ⚡ Prestazioni: Terminable Middleware, Coda Asincrona & Sampling
+
+Il pacchetto è progettato per ambienti di produzione ad alto traffico:
+
+1. **Terminable Middleware (`terminate()`)**:
+   La persistenza dei log su database avviene solo **dopo che la risposta HTTP è stata inviata al client**, con latenza percepita pari a **zero**.
+
+2. **Logging Asincrono su Coda**:
+   ```php
+   // config/logoperations.php
+   'queue' => [
+       'enabled' => env('LOG_OPERATIONS_QUEUE_ENABLED', false),
+       'connection' => env('LOG_OPERATIONS_QUEUE_CONNECTION', null),
+       'queue' => env('LOG_OPERATIONS_QUEUE_NAME', 'log-operations'),
+       'tries' => 3,
+       'backoff' => [10, 30, 60],
+       'alert_email' => env('LOG_OPERATIONS_ALERT_EMAIL', null),
+       'failed_jobs_threshold' => 5,
+   ],
+   ```
+   - In caso di broker di coda offline, il pacchetto esegue un **fallback automatico** su scrittura diretta o file di emergenza (`storage/logs/logoperations-emergency.log`).
+   - Allerta email automatica con rate-limiting se il numero di job falliti supera la soglia.
+
+3. **Campionamento Richieste di Successo (Sampling Rate)**:
+   ```php
+   // Registra solo il 10% delle chiamate con esito 200 OK
+   'sampling_rate' => 10,
+   ```
+   Gli errori (HTTP >= 400 ed eccezioni) vengono **sempre registrati al 100%**.
+
+---
+
+## 🛡️ Privacy, GDPR Art. 17 & Diritto all'Oblio
+
+1. **Anonimizzazione Indirizzi IP** (disabilitata di default per non alterare gli audit intranet):
+   ```env
+   LOG_OPERATIONS_ANONYMIZE_IP=true
+   ```
+   Maschera l'ultimo ottetto IPv4 (`192.168.1.xxx` o `192.168.1.0`) e la porzione utente IPv6.
+
+2. **Sanitizzazione Header Sensibili**:
+   Gli header `Authorization`, `Cookie`, `Set-Cookie`, `X-XSRF-TOKEN`, `X-CSRF-TOKEN` e credenziali HTTP vengono automaticamente mascherati.
+
+3. **Diritto all'Oblio (GDPR Art. 17 - Forget User)**:
+   ```php
+   use SalvatoreCervone\LogOperations\Facades\LogOperations;
+
+   // 1. Cancellazione fisica di tutti i log dell'utente:
+   LogOperations::forgetUser($userId);
+
+   // 2. Soft Scrub (preserva durata, rotte e codici HTTP, ma azzera dati personali e IP):
+   LogOperations::forgetUser($userId, anonymize: true);
+   ```
+
+   **Comando Artisan Console**:
+   ```bash
+   # Elimina con conferma interattiva:
+   php artisan logoperations:forget-user 42
+
+   # Anonimizza conservando i metadati tecnici:
+   php artisan logoperations:forget-user 42 --anonymize
+
+   # Forza l'esecuzione in script o scheduler:
+   php artisan logoperations:forget-user 42 --force
+   ```
+
+---
+
+## 📥 Export Massivo Streaming & 🚨 Alerting Multi-Canale
+
+### 1. Export in Streaming O(1) di Memoria
+Il pacchetto include endpoint dedicati per lo scaricamento di grandi moli di log senza saturare la memoria RAM del server PHP:
+
+- **Endpoint API**:
+  - `GET /api/logoperations/export?format=csv` (oppure `format=json`)
+- **Filtri di ricerca**: supporta tutti i filtri disponibili per la consultazione (`verb`, `status_codes`, `date_from`, `date_to`, `user`, `ip`, `controller`, `text`, `has_error`, `has_unfinished_transaction`, `min_duration`).
+- **CSV Excel-Ready**: include automaticamente il BOM UTF-8 (`\xEF\xBB\xBF`) per evitare problemi di codifica caratteri e accenti in Microsoft Excel.
+- **Pulsanti Dashboard**: integrati direttamente nella toolbar della dashboard standalone (`/logoperations`) e del playground demo.
+
+### 2. Sistema di Alerting Multi-Canale
+Notifiche in tempo reale al verificarsi di anomalie o eventi critici.
+
+#### Canali Supportati:
+- **Email**: invio notifiche formattate all'indirizzo dell'amministratore/team di supporto.
+- **Slack**: Webhook con payload interattivo, allegati colorati e timestamp.
+- **Discord**: Webhook con rich embeds formattati.
+- **Webhook generico**: invio payload POST JSON con firma di autenticazione crittografica HMAC opzionale (`X-LogOperations-Signature`).
+
+#### Dove e come impostare i parametri (Variabili di Ambiente `.env`):
+I parametri di alert possono essere configurati direttamente nel file `.env` della tua applicazione oppure in `config/logoperations.php`:
+
+```env
+# ==============================================================================
+# LOGOPERATIONS: SISTEMA DI ALERTING E NOTIFICHE MULTI-CANALE
+# ==============================================================================
+
+# 1. Abilitazione globale del sistema di alert (default: false)
+LOG_OPERATIONS_ALERTS_ENABLED=true
+
+# 2. Canale EMAIL: destinatario delle notifiche di allarme
+LOG_OPERATIONS_ALERT_EMAIL=admin@example.com
+
+# 3. Canale SLACK: Incoming Webhook URL del canale di monitoraggio
+LOG_OPERATIONS_SLACK_WEBHOOK=https://hooks.slack.com/services/T000/B000/XXXXX
+
+# 4. Canale DISCORD: Webhook URL del canale del server Discord
+LOG_OPERATIONS_DISCORD_WEBHOOK=https://discord.com/api/webhooks/123456789/abcdefgh
+
+# 5. Canale WEBHOOK GENERICO: Endpoint HTTP POST e Secret HMAC per validazione firma
+LOG_OPERATIONS_ALERT_WEBHOOK=https://api.mycompany.com/alerts/receiver
+LOG_OPERATIONS_ALERT_WEBHOOK_SECRET=chiave_segreta_hmac_256
+
+# 6. Finestra di silenzio anti-flood in minuti per canale/evento (default: 15 minuti)
+LOG_OPERATIONS_ALERT_THROTTLE=15
+
+# 7. Allarme immediato su Rollback di transazioni SQL non chiuse (default: true)
+LOG_OPERATIONS_ALERT_ON_ROLLBACK=true
+
+# 8. Parametri per il monitoraggio del picco del tasso di errore (logoperations:check-alerts)
+LOG_OPERATIONS_ALERT_WINDOW=5          # Finestra temporale di osservazione in minuti
+LOG_OPERATIONS_ALERT_THRESHOLD=10.0    # Soglia percentuale errori (es. 10%)
+LOG_OPERATIONS_ALERT_MIN_REQUESTS=20   # Volume minimo di richieste nel periodo per calcolare la percentuale
+```
+
+#### Selezione selettiva dei canali attivi (`config/logoperations.php`):
+Se desideri attivare solo specifici canali (ad esempio solo Slack ed Email escludendo Discord), puoi personalizzare l'array `'channels'` nel file `config/logoperations.php`:
+
+```php
+'alerts' => [
+    'enabled' => env('LOG_OPERATIONS_ALERTS_ENABLED', false),
+
+    // Array dei canali abilitati all'invio:
+    'channels' => ['mail', 'slack'], // oppure ['slack', 'discord', 'webhook']
+
+    // ...
+],
+```
+
+#### Eventi Monitorati:
+1. **Rollback di Transazioni SQL Pendenti**: notifica immediata quando una richiesta termina lasciando transazioni aperte che vengono chiuse con rollback di emergenza.
+2. **Picchi del Tasso di Errore**: monitoraggio della percentuale di richieste in errore (status >= 400 o eccezioni) su una finestra temporale (es. ultimi 5 minuti).
+
+#### Comando Artisan di Monitoraggio:
+```bash
+php artisan logoperations:check-alerts --window=5 --threshold=10 --min-requests=20
+```
+Può essere configurato nello scheduler di Laravel (`routes/console.php`):
+```php
+use Illuminate\Support\Facades\Schedule;
+
+Schedule::command('logoperations:check-alerts --window=5 --threshold=10')
+    ->everyFiveMinutes();
+```
+
+#### Meccanismo Anti-Flood Throttle:
+Tutti gli allarmi sono protetti da un rate-limiting intelligente basato su Cache (`throttle_minutes => 15`) per evitare che un disservizio continuativo intasi la casella email o i canali di messaggistica.
 
 ---
 
@@ -349,13 +654,13 @@ cd demo
 php artisan serve
 ```
 
-Apri il browser su `http://localhost:8000`:
-* In testata trovi la **Barra di Simulazione** per generare con 1 click scenari reali (Ordine con successo, Errore 500 con eccezione, Transazione SQL non chiusa, Richiesta lenta).
-* Puoi passare istantaneamente dal **Registro Operazioni** allo **Studio Rotte**, allo **Studio Funzioni** e alla **Sessione Utente Live**.
-* I tooltip interattivi e le guide rapide integrate forniscono spiegazioni chiare su ogni funzionalità.
+Apri il browser su:
+- **Playground Interattivo**: `http://localhost:8000`
+- **Dashboard Web Standalone**: `http://localhost:8000/logoperations`
 
 ---
 
 ## 📄 Licenza
 
 Distribuito con licenza MIT.
+

@@ -343,36 +343,27 @@ function jumpToPage() {
 /* ------------------------------------------------------------------ */
 
 function exportData(format) {
-  const data = logs.value.data
-  if (!data.length) return
+  const params = new URLSearchParams()
+  params.set('format', format)
 
-  let content, filename, mime
-  if (format === 'json') {
-    content = JSON.stringify(data, null, 2)
-    filename = 'log_operations_export.json'
-    mime = 'application/json'
+  if (showQueryBuilder.value && groups.value.length) {
+    params.set('g', btoa(JSON.stringify(groups.value)))
   } else {
-    // CSV
-    const headers = Object.keys(data[0])
-    const rows = data.map(row =>
-      headers.map(h => {
-        const val = row[h]
-        const str = typeof val === 'object' ? JSON.stringify(val) : String(val ?? '')
-        return '"' + str.replace(/"/g, '""') + '"'
-      }).join(',')
-    )
-    content = headers.join(',') + '\n' + rows.join('\n')
-    filename = 'log_operations_export.csv'
-    mime = 'text/csv'
+    if (filters.user) params.set('user', filters.user)
+    if (filters.verb.length) filters.verb.forEach(v => params.append('verb[]', v))
+    if (filters.status_codes.length) filters.status_codes.forEach(c => params.append('status_codes[]', c))
+    if (filters.date_from) params.set('date_from', filters.date_from)
+    if (filters.date_to) params.set('date_to', filters.date_to)
+    if (filters.ip) params.set('ip', filters.ip)
+    if (filters.controller) params.set('controller', filters.controller)
+    if (filters.app) params.set('app', filters.app)
+    if (filters.text) params.set('text', filters.text)
+    if (filters.has_error) params.set('has_error', '1')
+    if (filters.has_unfinished_transaction) params.set('has_unfinished_transaction', '1')
+    if (filters.min_duration) params.set('min_duration', filters.min_duration)
   }
 
-  const blob = new Blob([content], { type: mime })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
+  window.open(`${props.apiBase}/export?${params.toString()}`, '_blank')
 }
 
 /* ------------------------------------------------------------------ */

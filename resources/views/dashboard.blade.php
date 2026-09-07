@@ -545,13 +545,23 @@
         <div class="content-card">
             <!-- Filter Toolbar -->
             <div class="filter-toolbar">
-                <div class="filter-pills-row">
-                    <span class="filter-field-label">Filtri Rapidi:</span>
-                    <button :class="['filter-pill', { active: quickFilter === 'all' }]" @click="setQuickFilter('all')">Tutti</button>
-                    <button :class="['filter-pill', 'pill-danger', { active: quickFilter === 'errors' }]" @click="setQuickFilter('errors')">🐛 Solo Errori</button>
-                    <button :class="['filter-pill', 'pill-warning', { active: quickFilter === 'tx' }]" @click="setQuickFilter('tx')">⚡ Rollback DB</button>
-                    <button :class="['filter-pill', { active: quickFilter === 'slow' }]" @click="setQuickFilter('slow')">⏱️ Richieste Lente (>1s)</button>
-                    <button :class="['filter-pill', { active: quickFilter === '500' }]" @click="setQuickFilter('500')">🔥 HTTP 500</button>
+                <div class="filter-pills-row" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <span class="filter-field-label">Filtri Rapidi:</span>
+                        <button :class="['filter-pill', { active: quickFilter === 'all' }]" @click="setQuickFilter('all')">Tutti</button>
+                        <button :class="['filter-pill', 'pill-danger', { active: quickFilter === 'errors' }]" @click="setQuickFilter('errors')">🐛 Solo Errori</button>
+                        <button :class="['filter-pill', 'pill-warning', { active: quickFilter === 'tx' }]" @click="setQuickFilter('tx')">⚡ Rollback DB</button>
+                        <button :class="['filter-pill', { active: quickFilter === 'slow' }]" @click="setQuickFilter('slow')">⏱️ Richieste Lente (>1s)</button>
+                        <button :class="['filter-pill', { active: quickFilter === '500' }]" @click="setQuickFilter('500')">🔥 HTTP 500</button>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button class="filter-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 600;" @click="exportData('csv')" title="Esporta i log filtrati in CSV (compatibile con Excel)">
+                            📥 Esporta CSV
+                        </button>
+                        <button class="filter-pill" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); font-weight: 600;" @click="exportData('json')" title="Esporta i log filtrati in JSON">
+                            📥 Esporta JSON
+                        </button>
+                    </div>
                 </div>
 
                 <div class="filter-fields-grid">
@@ -820,6 +830,27 @@
                 fetchLogs(1);
             }
 
+            function getExportUrl(format) {
+                const params = new URLSearchParams();
+                params.set('format', format);
+                if (filterText.value) params.set('text', filterText.value);
+                if (filterVerb.value) params.set('verb', filterVerb.value);
+                if (filterUser.value) params.set('user', filterUser.value);
+                if (filterDateFrom.value) params.set('date_from', filterDateFrom.value);
+                if (filterDateTo.value) params.set('date_to', filterDateTo.value);
+
+                if (quickFilter.value === 'errors') params.set('has_error', '1');
+                if (quickFilter.value === 'tx') params.set('has_unfinished_transaction', '1');
+                if (quickFilter.value === 'slow') params.set('min_duration', '1000');
+                if (quickFilter.value === '500') params.set('status_codes[]', '500');
+
+                return `/${apiPrefix}/export?${params.toString()}`;
+            }
+
+            function exportData(format) {
+                window.open(getExportUrl(format), '_blank');
+            }
+
             async function fetchLogs(page = 1) {
                 loading.value = true;
                 try {
@@ -996,6 +1027,7 @@
                 formatTimestamp,
                 openDetail,
                 closeDetail,
+                exportData,
             };
         }
     }).mount('#app');

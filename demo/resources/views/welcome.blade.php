@@ -894,17 +894,35 @@
                 </button>
 
                 <button
-                    class="sim-btn btn-info"
+                    class="sim-btn"
+                    style="background: #8b5cf6; color: #fff;"
                     :disabled="simulating"
-                    @click="runSimulation('slow')"
-                    data-tooltip="<strong>Simula Latenza Elevata (1.2s):</strong><br>Esegue una richiesta rallentata artificialmente per testare il monitoraggio dei tempi di risposta e l'avviso arancione di lentezza."
-                    title="Simula Richiesta Lenta (1.2s) per testare le performance"
+                    @click="simulateOrderAction('checkpoint')"
+                    data-tooltip="<strong>Simula Checkpoint Storyboard:</strong><br>Chiama $order->logStep() per registrare un passaggio di business (es. presa in carico, spedizione) sulla timeline dell'ordine selezionato."
+                    title="Simula Checkpoint applicativo sulla Storyboard ($order->logStep)"
                 >
-                    ⏱️ Richiesta Lenta (1.2s)
+                    🚩 Checkpoint Storyboard
                 </button>
 
-                <span v-if="lastSimResult" class="sim-feedback">
+                <button
+                    v-if="selectedOrderId"
+                    class="sim-btn"
+                    style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid #6366f1;"
+                    @click="currentTab = 'storyboard'; fetchStoryboard();"
+                    title="Visualizza la timeline completa dell'ordine selezionato"
+                >
+                    📖 Vai a Storyboard
+                </button>
+
+                <span
+                    v-if="lastSimResult"
+                    class="sim-feedback"
+                    style="cursor: pointer;"
+                    @click="lastCreatedOrderId ? openStoryboardForSubject('App\\Models\\Order', lastCreatedOrderId) : null"
+                    :title="lastCreatedOrderId ? 'Clicca per aprire la Storyboard di questo ordine' : ''"
+                >
                     @{{ lastSimResult }}
+                    <span v-if="lastCreatedOrderId" style="text-decoration: underline; margin-left: 4px; font-weight: 700;">(Vedi Storyboard →)</span>
                 </span>
             </div>
         </header>
@@ -1104,18 +1122,37 @@
                         </div>
                     </div>
 
-                    <!-- Riepilogo Risultati -->
-                    <div class="filter-status-summary">
+                    <!-- Riepilogo Risultati & Azioni Export Streaming (Fase 9) -->
+                    <div class="filter-status-summary" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                         <div>
-                            <span>Risultati filtrati: </span>
-                            <strong style="color: #fff; font-size: 13px;">@{{ logs.length }} log trovati</strong>
+                            <span>Risultati visualizzati: </span>
+                            <strong style="color: #fff; font-size: 13px;">@{{ logs.length }} log</strong>
+                            <span v-if="pagination.total" style="color: var(--text-muted); font-size: 12px; margin-left: 4px;">
+                                (di @{{ pagination.total }} totali)
+                            </span>
                             <span v-if="hasActiveFilters" style="color: #38bdf8; margin-left: 8px; font-weight: 600;">
                                 • Filtri attivi applicati
                             </span>
                         </div>
-                        <div v-if="hasActiveFilters">
-                            <a href="#" @click.prevent="resetAllFilters" style="color: #f87171; text-decoration: none; font-weight: 700;">
-                                ✖️ Rimuovi tutti i filtri
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <button
+                                class="btn-action-primary"
+                                style="background: rgba(16, 185, 129, 0.18); border-color: rgba(16, 185, 129, 0.4); color: #34d399; font-size: 12px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; border-radius: 6px;"
+                                @click="exportData('csv')"
+                                title="Esporta tutti i log filtrati in streaming CSV O(1) memoria (compatibile con Microsoft Excel)"
+                            >
+                                📥 Esporta CSV
+                            </button>
+                            <button
+                                class="btn-action-primary"
+                                style="background: rgba(59, 130, 246, 0.18); border-color: rgba(59, 130, 246, 0.4); color: #60a5fa; font-size: 12px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; border-radius: 6px;"
+                                @click="exportData('json')"
+                                title="Esporta tutti i log filtrati in streaming JSON O(1) memoria"
+                            >
+                                📥 Esporta JSON
+                            </button>
+                            <a v-if="hasActiveFilters" href="#" @click.prevent="resetAllFilters" style="color: #f87171; text-decoration: none; font-weight: 700; margin-left: 10px; font-size: 12px;">
+                                ✖️ Rimuovi filtri
                             </a>
                         </div>
                     </div>
@@ -1766,6 +1803,7 @@
                 const userDuration = ref(15);
                 const simulating = ref(false);
                 const lastSimResult = ref('');
+                const lastCreatedOrderId = ref(null);
                 const routeFilter = ref('');
                 const activeModalLog = ref(null);
 
@@ -1955,6 +1993,47 @@
                     }
                 }
 
+                function getExportUrl(format) {
+                    const params = new URLSearchParams();
+                    params.append('format', format);
+
+                    if (activeQuickFilter.value === '500' || filterStatus.value === '500') {
+                        params.append('status_codes[]', '500');
+                    } else if (filterStatus.value) {
+                        params.append('status_codes[]', filterStatus.value);
+                    }
+
+                    if (activeQuickFilter.value === 'errors' || filterOnlyErrors.value) {
+                        params.append('has_error', '1');
+                    }
+
+                    if (activeQuickFilter.value === 'tx' || filterUnfinishedTx.value) {
+                        params.append('has_unfinished_transaction', '1');
+                    }
+
+                    if (activeQuickFilter.value === 'slow' || filterSlow.value) {
+                        params.append('min_duration', '1000');
+                    }
+
+                    if (filterUser.value) {
+                        params.append('user', filterUser.value);
+                    }
+
+                    if (filterVerb.value) {
+                        params.append('verb', filterVerb.value);
+                    }
+
+                    if (filterText.value && filterText.value.trim()) {
+                        params.append('text', filterText.value.trim());
+                    }
+
+                    return `/api/logoperations/export?${params.toString()}`;
+                }
+
+                function exportData(format) {
+                    window.open(getExportUrl(format), '_blank');
+                }
+
                 const visiblePages = computed(() => {
                     const total = pagination.value.last_page || 1;
                     const current = currentPage.value;
@@ -2045,7 +2124,17 @@
 
                         const res = await fetch(endpoint, { method, headers, body });
                         const data = await res.json().catch(() => ({}));
-                        lastSimResult.value = `Risposta: HTTP ${res.status}`;
+
+                        if (type === 'order' && data.order) {
+                            lastCreatedOrderId.value = data.order.id;
+                            selectedOrderId.value = data.order.id;
+                            lastSimResult.value = `✅ Creato ${data.order.reference} (€${data.totale}) con Storyboard!`;
+                            await fetchOrders();
+                        } else {
+                            lastCreatedOrderId.value = null;
+                            lastSimResult.value = `Risposta: HTTP ${res.status}`;
+                        }
+
                         await fetchLogs();
                     } catch (e) {
                         lastSimResult.value = 'Chiamata eseguita!';
@@ -2348,7 +2437,8 @@
                     ordersList, selectedOrderId, storyboardData, storyboardLoading,
                     storyboardCategory, storyboardSearch, storyboardSort, expandedTimelineEvents,
                     fetchOrders, fetchStoryboard, toggleStoryboardSort, toggleTimelineEvent,
-                    filteredStoryboardEvents, simulateOrderAction, openStoryboardForSubject
+                    filteredStoryboardEvents, simulateOrderAction, openStoryboardForSubject,
+                    lastCreatedOrderId, exportData
                 };
             }
         }).mount('#app');

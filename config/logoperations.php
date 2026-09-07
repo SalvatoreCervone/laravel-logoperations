@@ -392,6 +392,58 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Sistema di Alerting e Notifiche Multi-Canale
+    |--------------------------------------------------------------------------
+    |
+    | Notifiche in tempo reale per eventi critici (rollback pendenti, picchi
+    | di errore 5xx, fallimenti di scrittura coda).
+    | Canali supportati: 'mail', 'slack', 'discord', 'webhook'.
+    |
+    */
+
+    'alerts' => [
+        'enabled' => env('LOG_OPERATIONS_ALERTS_ENABLED', false),
+
+        // Canali attivi per l'invio delle notifiche
+        'channels' => ['mail', 'slack', 'discord', 'webhook'],
+
+        // Configurazione Email
+        'mail' => [
+            'to' => env('LOG_OPERATIONS_ALERT_EMAIL', null),
+        ],
+
+        // Configurazione Slack Webhook
+        'slack' => [
+            'webhook_url' => env('LOG_OPERATIONS_SLACK_WEBHOOK', null),
+        ],
+
+        // Configurazione Discord Webhook
+        'discord' => [
+            'webhook_url' => env('LOG_OPERATIONS_DISCORD_WEBHOOK', null),
+        ],
+
+        // Configurazione Webhook generico
+        'webhook' => [
+            'url' => env('LOG_OPERATIONS_ALERT_WEBHOOK', null),
+            'secret' => env('LOG_OPERATIONS_ALERT_WEBHOOK_SECRET', null),
+        ],
+
+        // Finestra di silenzio anti-flood in minuti per lo stesso canale ed evento
+        'throttle_minutes' => (int) env('LOG_OPERATIONS_ALERT_THROTTLE', 15),
+
+        // Notifica automatica immediata in caso di rollback di transazione non gestita
+        'notify_on_rollback' => env('LOG_OPERATIONS_ALERT_ON_ROLLBACK', true),
+
+        // Regole per il rilevamento picchi di errore (comando logoperations:check-alerts)
+        'error_rate' => [
+            'window_minutes' => (int) env('LOG_OPERATIONS_ALERT_WINDOW', 5),
+            'threshold_percentage' => (float) env('LOG_OPERATIONS_ALERT_THRESHOLD', 10.0),
+            'min_requests' => (int) env('LOG_OPERATIONS_ALERT_MIN_REQUESTS', 20),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Nome Applicazione
     |--------------------------------------------------------------------------
     |

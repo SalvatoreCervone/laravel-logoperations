@@ -29,6 +29,9 @@ $routeGroup = function () {
     Route::get('/verbs', [LogOperationsController::class, 'verbs']);
     Route::get('/applications', [LogOperationsController::class, 'applications']);
 
+    // Export streaming massivo O(1) memoria (CSV / JSON)
+    Route::get('/export', [LogOperationsController::class, 'export']);
+
     // Dettaglio singolo log
     Route::get('/{id}', [LogOperationsController::class, 'show'])
         ->where('id', '[0-9]+');

@@ -260,6 +260,15 @@ class LogOperationsMiddleware
             } else {
                 OperationLog::create($logData);
             }
+
+            // Invia notifica di allarme per rollback di transazioni pendenti se configurato
+            if (!empty($logData['transaction_status']) && str_starts_with($logData['transaction_status'], 'rolled_back')) {
+                try {
+                    app(\SalvatoreCervone\LogOperations\Services\AlertNotificationService::class)->sendRollbackAlert($logData);
+                } catch (\Throwable $alertException) {
+                    // La notifica non deve mai bloccare o alterare il ciclo del log
+                }
+            }
         } catch (\Throwable $e) {
             Log::warning('[LogOperations] Errore durante la persistenza del log: ' . $e->getMessage(), [
                 'exception' => $e->getMessage(),

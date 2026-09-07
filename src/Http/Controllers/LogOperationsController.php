@@ -8,7 +8,9 @@ use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use SalvatoreCervone\LogOperations\Models\OperationLog;
+use SalvatoreCervone\LogOperations\Services\LogExportService;
 use SalvatoreCervone\LogOperations\Http\Controllers\Concerns\AuthorizesLogOperations;
 
 /**
@@ -51,7 +53,10 @@ class LogOperationsController extends Controller
      *   has_unfinished_transaction = 1 per transazioni pendenti
      *   per_page      = elementi per pagina (default 20, max 100)
      */
-    public function index(Request $request): JsonResponse
+    /**
+     * Costruisce la query filtrata comune a index ed export.
+     */
+    protected function buildFilteredQuery(Request $request): \Illuminate\Database\Eloquent\Builder
     {
         $tableName = config('logoperations.table_name', 'log_operazioni');
 
@@ -96,6 +101,13 @@ class LogOperationsController extends Controller
         */
         $this->applyDirectFilters($query, $request, $tableName);
 
+        return $query;
+    }
+
+    public function index(Request $request): JsonResponse
+    {
+        $query = $this->buildFilteredQuery($request);
+
         // Paginazione server-side deterministica
         $defaultPerPage = (int) config('logoperations.dashboard.per_page', 20);
         $requestedPerPage = (int) $request->input('per_page', $defaultPerPage);
@@ -108,6 +120,41 @@ class LogOperationsController extends Controller
         });
 
         return response()->json($logs);
+    }
+
+    /**
+     * Esporta i log filtrati in formato streaming CSV o JSON con consumo O(1) di memoria.
+     *
+     * GET /api/log-operations/export
+     * Parametri: format=csv|json e tutti i filtri di ricerca supportati da index.
+     */
+    public function export(Request $request, LogExportService $exportService): StreamedResponse
+    {
+        $query = $this->buildFilteredQuery($request);
+        $format = strtolower($request->input('format', 'csv'));
+        $timestamp = now()->format('Y-m-d_His');
+
+        if ($format === 'json') {
+            $filename = "logoperations_export_{$timestamp}.json";
+            return response()->streamDownload(function () use ($query, $exportService) {
+                $stream = fopen('php://output', 'w');
+                $exportService->exportJson($query, $stream);
+                fclose($stream);
+            }, $filename, [
+                'Content-Type' => 'application/json',
+                'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            ]);
+        }
+
+        $filename = "logoperations_export_{$timestamp}.csv";
+        return response()->streamDownload(function () use ($query, $exportService) {
+            $stream = fopen('php://output', 'w');
+            $exportService->exportCsv($query, $stream);
+            fclose($stream);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+        ]);
     }
 
     /**

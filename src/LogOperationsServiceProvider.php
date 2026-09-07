@@ -44,6 +44,8 @@ class LogOperationsServiceProvider extends ServiceProvider
         $this->app->singleton(\SalvatoreCervone\LogOperations\Services\RuleEngine::class);
         $this->app->singleton(\SalvatoreCervone\LogOperations\Services\AppScanner::class);
         $this->app->singleton(\SalvatoreCervone\LogOperations\Services\QueueAlertService::class);
+        $this->app->singleton(\SalvatoreCervone\LogOperations\Services\LogExportService::class);
+        $this->app->singleton(\SalvatoreCervone\LogOperations\Services\AlertNotificationService::class);
         $this->app->singleton(\SalvatoreCervone\LogOperations\Services\MethodInterceptor::class, function ($app) {
             return new \SalvatoreCervone\LogOperations\Services\MethodInterceptor(
                 $app,
@@ -104,6 +106,7 @@ class LogOperationsServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 \SalvatoreCervone\LogOperations\Console\Commands\ForgetUserCommand::class,
+                \SalvatoreCervone\LogOperations\Console\Commands\CheckAlertsCommand::class,
             ]);
         }
 
