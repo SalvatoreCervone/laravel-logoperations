@@ -109,6 +109,7 @@ class LogOperationsServiceProvider extends ServiceProvider
                 \SalvatoreCervone\LogOperations\Console\Commands\CheckAlertsCommand::class,
                 \SalvatoreCervone\LogOperations\Console\Commands\PruneLogsCommand::class,
                 \SalvatoreCervone\LogOperations\Console\Commands\ClearExpiredRulesCommand::class,
+                \SalvatoreCervone\LogOperations\Console\Commands\StatusCommand::class,
             ]);
         }
 

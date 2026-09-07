@@ -278,6 +278,31 @@ class LogOperationsController extends Controller
     }
 
     /**
+     * Restituisce la lista degli ultimi soggetti polimorfici (subject) tracciati nei log.
+     *
+     * GET /api/log-operations/storyboard/subjects
+     */
+    public function subjects(): JsonResponse
+    {
+        $subjects = OperationLog::query()
+            ->whereNotNull('subject_type')
+            ->whereNotNull('subject_id')
+            ->select(['subject_type', 'subject_id'])
+            ->distinct()
+            ->limit(50)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'type' => $item->subject_type,
+                    'id' => (string) $item->subject_id,
+                    'label' => class_basename($item->subject_type) . ' #' . $item->subject_id,
+                ];
+            });
+
+        return response()->json($subjects);
+    }
+
+    /**
      * Classifica la natura dell'evento per renderlo intuitivo nello Storyboard.
      */
     protected function classifyEvent(OperationLog $log): array

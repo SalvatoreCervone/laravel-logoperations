@@ -694,6 +694,19 @@ LOG_OPERATIONS_RETENTION_DAYS=365
 LOG_OPERATIONS_PRUNE_CHUNK_SIZE=1000
 ```
 
+### 5. Diagnostica & Stato del Pacchetto (`logoperations:status`)
+Per verificare rapidamente la salute operativa del pacchetto, le regole attive, la configurazione degli allarmi e i conteggi del database:
+
+```bash
+php artisan logoperations:status
+```
+
+Fornisce un output diagnostico suddiviso in 4 tabelle riassuntive:
+- **Stato Generale**: connessione DB, tabella, log totali, errori e conteggio eventi Storyboard entità.
+- **Centro di Controllo Zero-Code (Tracking Studio)**: rotte web/API dinamiche, metodi proxy e sessioni utente attive.
+- **Sistema di Alerting & Notifiche**: canali abilitati (Mail, Slack, Discord, Webhook), anti-flood throttle e alert rollback SQL.
+- **Retention Policy & Salvaguardia**: stato cancellazione automatica e scudi protettivi 100% per Storyboard ed Errori.
+
 ---
 
 ## 🧪 Playground & Demo Live Incorporata (`demo/`)

@@ -38,6 +38,7 @@ $routeGroup = function () {
 
     // Storyboard del record (timeline polimorfica di vita delle entità)
     Route::get('/storyboard', [LogOperationsController::class, 'storyboard']);
+    Route::get('/storyboard/subjects', [LogOperationsController::class, 'subjects']);
     Route::get('/storyboard/{type}/{id}', [LogOperationsController::class, 'storyboardByRoute']);
 
     // Rotte Zero-Code Tracking Studio

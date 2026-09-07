@@ -265,4 +265,24 @@ class StoryboardTest extends TestCase
         $this->assertCount(1, $resSearch->json('events'));
         $this->assertEquals(400, $resSearch->json('events.0.codicehttp'));
     }
+
+    public function test_storyboard_subjects_api_returns_distinct_tracked_subjects(): void
+    {
+        $order = StoryboardTestOrder::create([
+            'reference' => 'ORD-1008',
+            'total' => 110.00,
+        ]);
+
+        $this->getJson("/test-orders/{$order->id}");
+
+        $apiUrl = config('logoperations.api_prefix', 'api/logoperations');
+        $response = $this->getJson("/{$apiUrl}/storyboard/subjects");
+
+        $response->assertStatus(200)
+            ->assertJsonFragment([
+                'id' => (string) $order->id,
+                'type' => StoryboardTestOrder::class,
+                'label' => "StoryboardTestOrder #{$order->id}",
+            ]);
+    }
 }
