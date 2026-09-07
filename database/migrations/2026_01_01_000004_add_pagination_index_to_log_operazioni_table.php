@@ -15,16 +15,26 @@ return new class extends Migration
     }
 
     /**
+     * Get the database connection for the migration.
+     */
+    public function getConnection(): ?string
+    {
+        return config('logoperations.database_connection');
+    }
+
+    /**
      * Aggiunge l'indice composito per massimizzare le prestazioni di paginazione
      * e ordinamento deterministico (dataoperazione DESC, id DESC).
      */
     public function up(): void
     {
-        if (!Schema::hasTable($this->tableName())) {
+        $schema = Schema::connection($this->getConnection());
+
+        if (!$schema->hasTable($this->tableName())) {
             return;
         }
 
-        Schema::table($this->tableName(), function (Blueprint $table) {
+        $schema->table($this->tableName(), function (Blueprint $table) {
             $table->index(['dataoperazione', 'id'], 'idx_log_op_pagination');
         });
     }
@@ -34,11 +44,13 @@ return new class extends Migration
      */
     public function down(): void
     {
-        if (!Schema::hasTable($this->tableName())) {
+        $schema = Schema::connection($this->getConnection());
+
+        if (!$schema->hasTable($this->tableName())) {
             return;
         }
 
-        Schema::table($this->tableName(), function (Blueprint $table) {
+        $schema->table($this->tableName(), function (Blueprint $table) {
             $table->dropIndex('idx_log_op_pagination');
         });
     }

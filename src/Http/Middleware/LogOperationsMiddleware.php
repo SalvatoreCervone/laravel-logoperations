@@ -139,7 +139,19 @@ class LogOperationsMiddleware
             $parametriHeaders = config('logoperations.privacy.log_headers', false)
                 ? ['headers' => $this->privacyManager->sanitizeHeaders($request->headers->all())]
                 : [];
-            $parametri = array_merge($parametriPost, $parametriQuery, $parametriRoute, $parametriHeaders);
+            $manualContext = $this->manager->getContext();
+            $parametriContext = !empty($manualContext) ? ['context' => $manualContext] : [];
+            $tags = $this->manager->getTags();
+            $parametriTags = !empty($tags) ? ['tags' => $tags] : [];
+
+            $parametri = array_merge(
+                $parametriPost,
+                $parametriQuery,
+                $parametriRoute,
+                $parametriHeaders,
+                $parametriContext,
+                $parametriTags
+            );
             $parametri = !empty($parametri) ? $this->maskSensitiveFields($parametri) : null;
 
             // Controller e metodo
@@ -158,16 +170,20 @@ class LogOperationsMiddleware
 
             // Step e trace personalizzati dal codice applicativo
             $customTraces = null;
-            if ($this->manager->hasCustomTraces()) {
+            if ($this->manager->hasCustomTraces() || $this->manager->hasTags() || $this->manager->hasContext()) {
                 $customTraces = [
                     'steps' => $this->manager->getSteps(),
                     'traces' => $this->manager->getTraces(),
+                    'tags' => $this->manager->getTags(),
+                    'context' => $this->privacyManager->maskSensitiveData($this->manager->getContext()),
                     'db_callers' => $this->stackTracer->getDbCallers(),
                 ];
             } elseif (!empty($this->stackTracer->getDbCallers())) {
                 $customTraces = [
                     'steps' => [],
                     'traces' => [],
+                    'tags' => [],
+                    'context' => [],
                     'db_callers' => $this->stackTracer->getDbCallers(),
                 ];
             }
@@ -186,7 +202,7 @@ class LogOperationsMiddleware
                 'user_type' => $userType,
                 'subject_id' => $subjectId,
                 'subject_type' => $subjectType,
-                'rotta' => Str::limit($request->getRequestUri(), 1024, ''),
+                'rotta' => Str::limit($this->privacyManager->sanitizeUri($request->getRequestUri()), 1024, ''),
                 'verbo' => $verbo,
                 'controllermethod' => $controllerMethod,
                 'codicehttp' => $statusCode,
@@ -216,7 +232,7 @@ class LogOperationsMiddleware
             // Il logging non deve mai bloccare la risposta al client
             Log::warning('[LogOperations] Errore durante la preparazione del log: ' . $e->getMessage(), [
                 'exception' => $e->getMessage(),
-                'uri' => $request->getRequestUri(),
+                'uri' => $this->privacyManager->sanitizeUri($request->getRequestUri()),
             ]);
         }
 
@@ -272,7 +288,7 @@ class LogOperationsMiddleware
         } catch (\Throwable $e) {
             Log::warning('[LogOperations] Errore durante la persistenza del log: ' . $e->getMessage(), [
                 'exception' => $e->getMessage(),
-                'uri' => $request->getRequestUri(),
+                'uri' => $this->privacyManager->sanitizeUri($request->getRequestUri()),
             ]);
         }
     }

@@ -28,6 +28,16 @@ class LogOperationsManager
     protected array $traces = [];
 
     /**
+     * Contesto manuale applicativo arricchito durante la richiesta.
+     */
+    protected array $context = [];
+
+    /**
+     * Tag descrittivi associati alla richiesta corrente.
+     */
+    protected array $tags = [];
+
+    /**
      * Entità target polimorfica (subject) associata alla richiesta corrente.
      */
     protected ?\Illuminate\Database\Eloquent\Model $subject = null;
@@ -245,13 +255,110 @@ class LogOperationsManager
     }
 
     /**
-     * Resetta gli step e i trace per la prossima richiesta.
+     * Arricchisce il contesto personalizzato della richiesta corrente.
+     *
+     * @param array $context Array associativo di dati di contesto
+     * @return self
+     */
+    public function withContext(array $context): self
+    {
+        $this->context = array_merge($this->context, $context);
+        return $this;
+    }
+
+    /**
+     * Aggiunge un singolo elemento al contesto della richiesta corrente.
+     *
+     * @param string $key Chiave del dato di contesto
+     * @param mixed $value Valore associato
+     * @return self
+     */
+    public function addContext(string $key, mixed $value): self
+    {
+        $this->context[$key] = $value;
+        return $this;
+    }
+
+    /**
+     * Restituisce l'array del contesto personalizzato registrato.
+     *
+     * @return array
+     */
+    public function getContext(): array
+    {
+        return $this->context;
+    }
+
+    /**
+     * Verifica se è presente un contesto personalizzato.
+     *
+     * @return bool
+     */
+    public function hasContext(): bool
+    {
+        return !empty($this->context);
+    }
+
+    /**
+     * Assegna uno o più tag alla richiesta corrente.
+     *
+     * @param string|array ...$tags Uno o più tag o array di tag
+     * @return self
+     */
+    public function tag(string|array ...$tags): self
+    {
+        foreach ($tags as $item) {
+            if (is_array($item)) {
+                foreach ($item as $t) {
+                    if (is_string($t) && $t !== '' && !in_array($t, $this->tags, true)) {
+                        $this->tags[] = $t;
+                    }
+                }
+            } elseif (is_string($item) && $item !== '' && !in_array($item, $this->tags, true)) {
+                $this->tags[] = $item;
+            }
+        }
+        return $this;
+    }
+
+    /**
+     * Restituisce i tag associati alla richiesta corrente.
+     *
+     * @return array
+     */
+    public function getTags(): array
+    {
+        return $this->tags;
+    }
+
+    /**
+     * Verifica se sono presenti tag associati.
+     *
+     * @return bool
+     */
+    public function hasTags(): bool
+    {
+        return !empty($this->tags);
+    }
+
+    /**
+     * Resetta gli step, i trace, il contesto e i tag per la prossima richiesta.
      */
     public function flush(): void
     {
         $this->steps = [];
         $this->traces = [];
+        $this->context = [];
+        $this->tags = [];
         $this->subject = null;
+    }
+
+    /**
+     * Sanitizza una URI mascherando i parametri sensibili.
+     */
+    public function sanitizeUri(string $uri, ?array $fields = null): string
+    {
+        return $this->privacyManager->sanitizeUri($uri, $fields);
     }
 
     /**

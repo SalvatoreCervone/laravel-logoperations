@@ -89,6 +89,50 @@ class PrivacyManager
     }
 
     /**
+     * Sanitizza una URI mascherando i parametri sensibili presenti nella query string.
+     *
+     * @param string $uri L'URI o URL da sanitizzare (es. '/api/users?token=secret123&page=1')
+     * @param array|null $fields Elenco campi da mascherare (default config 'logoperations.mask_fields')
+     * @return string L'URI con i valori dei parametri sensibili mascherati da '***MASKED***'
+     */
+    public function sanitizeUri(string $uri, ?array $fields = null): string
+    {
+        $parts = parse_url($uri);
+        if ($parts === false || empty($parts['query'])) {
+            return $uri;
+        }
+
+        parse_str($parts['query'], $queryParams);
+        if (empty($queryParams)) {
+            return $uri;
+        }
+
+        $maskedParams = $this->maskSensitiveData($queryParams, $fields);
+        $newQuery = http_build_query($maskedParams);
+        $newQuery = str_replace(
+            ['%2A%2A%2AMASKED%2A%2A%2A', '%2a%2a%2amaskied%2a%2a%2a', '%2a%2a%2amasked%2a%2a%2a'],
+            '***MASKED***',
+            $newQuery
+        );
+
+        $scheme   = isset($parts['scheme']) ? $parts['scheme'] . '://' : '';
+        $host     = $parts['host'] ?? '';
+        $port     = isset($parts['port']) ? ':' . $parts['port'] : '';
+        $user     = $parts['user'] ?? '';
+        $pass     = isset($parts['pass']) ? ':' . $parts['pass'] : '';
+        $userPass = ($user !== '' || $pass !== '') ? "$user$pass@" : '';
+        $path     = $parts['path'] ?? '';
+        $query    = $newQuery !== '' ? '?' . $newQuery : '';
+        $fragment = isset($parts['fragment']) ? '#' . $parts['fragment'] : '';
+
+        if ($scheme !== '' || $host !== '') {
+            return "$scheme$userPass$host$port$path$query$fragment";
+        }
+
+        return "$path$query$fragment";
+    }
+
+    /**
      * Esegue il Diritto all'Oblio (GDPR Art. 17).
      *
      * Se $anonymize è false (default), elimina fisicamente tutti i log associati all'utente.

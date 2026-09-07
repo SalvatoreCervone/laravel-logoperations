@@ -89,4 +89,55 @@ class PrivacyManagerTest extends TestCase
         $this->assertEquals(['track-12345'], $sanitized['x-custom-tracking']);
         $this->assertEquals(['application/json'], $sanitized['accept']);
     }
+
+    public function test_sanitize_uri_masks_sensitive_query_parameters(): void
+    {
+        $uri = '/api/v1/checkout?token=secret123&page=1&card_number=1111222233334444';
+        $sanitized = $this->privacy->sanitizeUri($uri);
+
+        $this->assertStringContainsString('token=***MASKED***', $sanitized);
+        $this->assertStringContainsString('card_number=***MASKED***', $sanitized);
+        $this->assertStringContainsString('page=1', $sanitized);
+        $this->assertStringNotContainsString('secret123', $sanitized);
+        $this->assertStringNotContainsString('1111222233334444', $sanitized);
+    }
+
+    public function test_sanitize_uri_leaves_non_sensitive_query_intact(): void
+    {
+        $uri = '/api/v1/products?category=electronics&sort=asc&page=2';
+        $sanitized = $this->privacy->sanitizeUri($uri);
+
+        $this->assertEquals($uri, $sanitized);
+    }
+
+    public function test_sanitize_uri_handles_urls_without_query(): void
+    {
+        $uri = '/api/v1/users';
+        $this->assertEquals($uri, $this->privacy->sanitizeUri($uri));
+
+        $empty = '';
+        $this->assertEquals('', $this->privacy->sanitizeUri($empty));
+    }
+
+    public function test_sanitize_uri_handles_nested_query_params(): void
+    {
+        $uri = '/api/v1/search?filter[password]=my_secret_pw&filter[query]=books';
+        $sanitized = $this->privacy->sanitizeUri($uri);
+
+        $this->assertStringNotContainsString('my_secret_pw', $sanitized);
+        $this->assertStringContainsString('***MASKED***', $sanitized);
+        $this->assertStringContainsString('books', $sanitized);
+    }
+
+    public function test_sanitize_uri_handles_full_urls_with_port_and_fragment(): void
+    {
+        $url = 'https://example.com:8080/path/test?api_key=sk_live_12345&foo=bar#section1';
+        $sanitized = $this->privacy->sanitizeUri($url);
+
+        $this->assertStringStartsWith('https://example.com:8080/path/test?', $sanitized);
+        $this->assertStringContainsString('api_key=***MASKED***', $sanitized);
+        $this->assertStringContainsString('foo=bar', $sanitized);
+        $this->assertStringEndsWith('#section1', $sanitized);
+        $this->assertStringNotContainsString('sk_live_12345', $sanitized);
+    }
 }

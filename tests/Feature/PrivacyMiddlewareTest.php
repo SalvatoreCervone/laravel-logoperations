@@ -64,4 +64,21 @@ class PrivacyMiddlewareTest extends TestCase
         // Header personalizzati o non sensibili devono essere registrati
         $this->assertEquals(['client-uuid-999'], $headers['x-tracking-id']);
     }
+
+    public function test_middleware_sanitizes_query_string_in_rotta_column(): void
+    {
+        $this->post('/test-privacy?token=super_secret_token_123&sort=desc&password=hidden_pwd', [
+            'data' => 'sample',
+        ]);
+
+        $log = OperationLog::first();
+        $this->assertNotNull($log);
+
+        // La colonna rotta deve avere i parametri sensibili mascherati
+        $this->assertStringContainsString('token=***MASKED***', $log->rotta);
+        $this->assertStringContainsString('password=***MASKED***', $log->rotta);
+        $this->assertStringContainsString('sort=desc', $log->rotta);
+        $this->assertStringNotContainsString('super_secret_token_123', $log->rotta);
+        $this->assertStringNotContainsString('hidden_pwd', $log->rotta);
+    }
 }

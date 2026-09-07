@@ -200,6 +200,28 @@ class OperationLog extends Model
         return $query;
     }
 
+    /**
+     * Filtra per tag assegnato alla richiesta.
+     */
+    public function scopeTag(Builder $query, string $tag): Builder
+    {
+        return $query->where(function ($q) use ($tag) {
+            $q->whereJsonContains('parametri->tags', $tag)
+              ->orWhere('parametri', 'like', '%"tags":%' . $tag . '%');
+        });
+    }
+
+    /**
+     * Filtra per chiave di contesto personalizzato.
+     */
+    public function scopeContext(Builder $query, string $key, mixed $value = null): Builder
+    {
+        if ($value === null) {
+            return $query->whereNotNull("parametri->context->$key");
+        }
+        return $query->where("parametri->context->$key", $value);
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Accessors

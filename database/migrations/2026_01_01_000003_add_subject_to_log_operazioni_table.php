@@ -19,16 +19,25 @@ return new class extends Migration
         return config('logoperations.table_name', 'log_operazioni');
     }
 
+    /**
+     * Get the database connection for the migration.
+     */
+    public function getConnection(): ?string
+    {
+        return config('logoperations.database_connection');
+    }
+
     public function up(): void
     {
         $table = $this->tableName();
+        $schema = Schema::connection($this->getConnection());
 
-        if (!Schema::hasTable($table)) {
+        if (!$schema->hasTable($table)) {
             return;
         }
 
-        Schema::table($table, function (Blueprint $blueprint) use ($table) {
-            if (!Schema::hasColumn($table, 'subject_type')) {
+        $schema->table($table, function (Blueprint $blueprint) use ($table, $schema) {
+            if (!$schema->hasColumn($table, 'subject_type')) {
                 $blueprint->nullableMorphs('subject');
             }
         });
@@ -37,13 +46,14 @@ return new class extends Migration
     public function down(): void
     {
         $table = $this->tableName();
+        $schema = Schema::connection($this->getConnection());
 
-        if (!Schema::hasTable($table)) {
+        if (!$schema->hasTable($table)) {
             return;
         }
 
-        Schema::table($table, function (Blueprint $blueprint) use ($table) {
-            if (Schema::hasColumn($table, 'subject_type')) {
+        $schema->table($table, function (Blueprint $blueprint) use ($table, $schema) {
+            if ($schema->hasColumn($table, 'subject_type')) {
                 $blueprint->dropMorphs('subject');
             }
         });

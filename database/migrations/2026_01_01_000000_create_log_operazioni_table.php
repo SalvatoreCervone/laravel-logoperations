@@ -15,16 +15,24 @@ return new class extends Migration
     }
 
     /**
+     * Get the database connection for the migration.
+     */
+    public function getConnection(): ?string
+    {
+        return config('logoperations.database_connection');
+    }
+
+    /**
      * Crea la tabella dei log operazioni con supporto polimorfico,
      * stack trace JSON e tracciamento transazioni.
      */
     public function up(): void
     {
-        if (Schema::hasTable($this->tableName())) {
+        if (Schema::connection($this->getConnection())->hasTable($this->tableName())) {
             return;
         }
 
-        Schema::create($this->tableName(), function (Blueprint $table) {
+        Schema::connection($this->getConnection())->create($this->tableName(), function (Blueprint $table) {
 
             $table->id();
 
@@ -94,6 +102,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists($this->tableName());
+        Schema::connection($this->getConnection())->dropIfExists($this->tableName());
     }
 };
