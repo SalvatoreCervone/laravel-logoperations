@@ -149,6 +149,10 @@ class AppScanner
                     $targetKey = $className . '@' . $method->getName();
                     $rule = $rules->get($targetKey);
 
+                    // Verifica se il metodo o la classe possiedono l'attributo #[Traceable]
+                    $hasTraceableAttr = !empty($method->getAttributes(\SalvatoreCervone\LogOperations\Attributes\Traceable::class))
+                        || !empty($ref->getAttributes(\SalvatoreCervone\LogOperations\Attributes\Traceable::class));
+
                     // Estrai firma dei parametri
                     $params = [];
                     foreach ($method->getParameters() as $param) {
@@ -160,13 +164,14 @@ class AppScanner
                     }
 
                     $methods[] = [
-                        'name'        => $method->getName(),
-                        'target'      => $targetKey,
-                        'parameters'  => $params,
-                        'return_type' => $method->hasReturnType() ? (string) $method->getReturnType() : 'mixed',
-                        'is_tracked'  => $rule ? $rule->is_active : false,
-                        'rule_id'     => $rule ? $rule->id : null,
-                        'stack_level' => $rule ? $rule->stack_level : 'core',
+                        'name'                   => $method->getName(),
+                        'target'                 => $targetKey,
+                        'parameters'             => $params,
+                        'return_type'            => $method->hasReturnType() ? (string) $method->getReturnType() : 'mixed',
+                        'is_tracked'             => $rule ? $rule->is_active : $hasTraceableAttr,
+                        'rule_id'                => $rule ? $rule->id : null,
+                        'stack_level'            => $rule ? $rule->stack_level : 'core',
+                        'is_traceable_attribute' => $hasTraceableAttr,
                     ];
                 }
 

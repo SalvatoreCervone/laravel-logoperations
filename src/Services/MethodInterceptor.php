@@ -3,40 +3,51 @@
 namespace SalvatoreCervone\LogOperations\Services;
 
 use Illuminate\Contracts\Foundation\Application;
+use ReflectionClass;
+use SalvatoreCervone\LogOperations\Attributes\Traceable;
 use SalvatoreCervone\LogOperations\Facades\LogOperations;
 
 /**
  * Proxy Interceptor Dinamico per l'intercettazione a runtime
  * delle funzioni interne e metodi di servizio dell'applicazione.
  *
- * Si aggancia al Service Container di Laravel tramite app()->extend()
- * o decoratori per tracciare chiamate, argomenti, tempo di esecuzione ed eccezioni
- * senza modificare una singola riga di codice nei file sorgente dell'app.
+ * Utilizza ProxyClassGenerator per generare sottoclassi proxy tipizzate
+ * che estendono direttamente la classe originale target, prevenendo qualsiasi
+ * TypeError nella Dependency Injection di Laravel.
  */
 class MethodInterceptor
 {
     protected Application $app;
     protected RuleEngine $ruleEngine;
+    protected ProxyClassGenerator $proxyGenerator;
 
-    public function __construct(Application $app, RuleEngine $ruleEngine)
-    {
+    /**
+     * Elenco delle classi registrate per il tracciamento.
+     *
+     * @var array<string, array<string>>
+     */
+    protected array $registeredClasses = [];
+
+    public function __construct(
+        Application $app,
+        RuleEngine $ruleEngine,
+        ?ProxyClassGenerator $proxyGenerator = null
+    ) {
         $this->app = $app;
         $this->ruleEngine = $ruleEngine;
+        $this->proxyGenerator = $proxyGenerator ?: new ProxyClassGenerator();
     }
 
     /**
      * Registra i proxy nel Service Container per tutte le classi
-     * che hanno almeno un metodo monitorato attivo.
+     * che hanno almeno un metodo monitorato attivo (via DB o via attributo #[Traceable]).
      */
     public function registerActiveInterceptors(): void
     {
+        // 1. Regole attive da Database / Cache
         $activeRules = $this->ruleEngine->getActiveRules()['methods'] ?? [];
-        if (empty($activeRules)) {
-            return;
-        }
-
-        // Raggruppa per nome classe
         $classesToHook = [];
+
         foreach (array_keys($activeRules) as $target) {
             if (str_contains($target, '@')) {
                 [$className, $method] = explode('@', $target, 2);
@@ -44,143 +55,125 @@ class MethodInterceptor
             }
         }
 
+        // 2. Registra le classi identificate
         foreach ($classesToHook as $className => $methods) {
-            if (!class_exists($className)) {
-                continue;
-            }
-
-            try {
-                // Registra il wrapper quando la classe viene risolta dal container
-                $this->app->extend($className, function ($instance) use ($className, $methods) {
-                    return $this->createProxy($instance, $className, $methods);
-                });
-            } catch (\Throwable $e) {
-                // Se la classe non è bindabile come estensione, prosegui
-            }
+            $this->registerTraceableClass($className, array_unique($methods));
         }
     }
 
     /**
-     * Crea un proxy dinamico trasparente per l'istanza.
+     * Registra esplicitamente una classe per l'intercettazione dei suoi metodi.
+     *
+     * @param string $className Nome completo della classe
+     * @param array<string>|null $methods Metodi specifici da monitorare (null = tutti i metodi o quelli con #[Traceable])
+     */
+    public function registerTraceableClass(string $className, ?array $methods = null): void
+    {
+        $className = ltrim($className, '\\');
+
+        if (!class_exists($className) && !interface_exists($className)) {
+            return;
+        }
+
+        // Se i metodi non sono specificati, ispeziona la classe e i suoi attributi #[Traceable]
+        if ($methods === null) {
+            $methods = $this->discoverTraceableMethods($className);
+        }
+
+        if (empty($methods)) {
+            $methods = ['*'];
+        }
+
+        $this->registeredClasses[$className] = $methods;
+
+        try {
+            // Registra il wrapper tipizzato quando la classe viene risolta dal container
+            $this->app->extend($className, function ($instance) use ($className, $methods) {
+                return $this->createProxy($instance, $className, $methods);
+            });
+        } catch (\Throwable $e) {
+            // Se la classe non è bindata o estendibile nel container, prosegui silenziosamente
+        }
+    }
+
+    /**
+     * Crea un proxy dinamico tipizzato per l'istanza.
      */
     public function createProxy(object $target, string $className, array $monitoredMethods): object
     {
-        $engine = $this->ruleEngine;
+        return $this->proxyGenerator->createProxy($target, $className, $monitoredMethods, $this->ruleEngine);
+    }
 
-        return new class($target, $className, $monitoredMethods, $engine) {
-            protected object $target;
-            protected string $className;
-            protected array $monitoredMethods;
-            protected RuleEngine $engine;
+    /**
+     * Ispeziona la classe alla ricerca di metodi con l'attributo #[Traceable].
+     */
+    public function discoverTraceableMethods(string $className): array
+    {
+        if (!class_exists($className)) {
+            return [];
+        }
 
-            public function __construct(object $target, string $className, array $monitoredMethods, RuleEngine $engine)
-            {
-                $this->target = $target;
-                $this->className = $className;
-                $this->monitoredMethods = $monitoredMethods;
-                $this->engine = $engine;
+        $ref = new ReflectionClass($className);
+        $methods = [];
+
+        // Se l'intera classe ha #[Traceable], tutti i metodi pubblici sono monitorati
+        if (!empty($ref->getAttributes(Traceable::class))) {
+            return ['*'];
+        }
+
+        foreach ($ref->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
+            if (!empty($method->getAttributes(Traceable::class))) {
+                $methods[] = $method->getName();
             }
+        }
 
-            /**
-             * Intercetta tutte le chiamate ai metodi.
-             */
-            public function __call(string $method, array $arguments)
-            {
-                $isMonitored = in_array('*', $this->monitoredMethods) || in_array($method, $this->monitoredMethods);
+        return $methods;
+    }
 
-                if (!$isMonitored) {
-                    return $this->target->$method(...$arguments);
-                }
+    /**
+     * Restituisce l'istanza del generatore proxy.
+     */
+    public function getProxyGenerator(): ProxyClassGenerator
+    {
+        return $this->proxyGenerator;
+    }
 
-                $startTime = microtime(true);
-                $label = class_basename($this->className) . '::' . $method;
+    /**
+     * Restituisce le classi attualmente registrate per l'intercettazione.
+     */
+    public function getRegisteredClasses(): array
+    {
+        return $this->registeredClasses;
+    }
 
-                try {
-                    $result = $this->target->$method(...$arguments);
-                    $durationMs = round((microtime(true) - $startTime) * 1000, 2);
+    /**
+     * Sanitizza dati complessi per evitare crash o log troppo pesanti.
+     */
+    public static function sanitizeForLog($data, int $depth = 0)
+    {
+        if ($depth > 3) {
+            return '[Max Depth Reached]';
+        }
 
-                    // Sanitizza argomenti e risultato per i log
-                    $safeArgs = $this->sanitizeForLog($arguments);
-                    $safeResult = $this->sanitizeForLog($result);
+        if (is_null($data) || is_scalar($data)) {
+            return $data;
+        }
 
-                    LogOperations::step($label, [
-                        'type'        => 'method_execution',
-                        'class'       => $this->className,
-                        'method'      => $method,
-                        'duration_ms' => $durationMs,
-                        'arguments'   => $safeArgs,
-                        'result'      => $safeResult,
-                        'status'      => 'success',
-                    ]);
-
-                    return $result;
-                } catch (\Throwable $e) {
-                    $durationMs = round((microtime(true) - $startTime) * 1000, 2);
-
-                    LogOperations::step($label . ' [ERRORE]', [
-                        'type'        => 'method_execution',
-                        'class'       => $this->className,
-                        'method'      => $method,
-                        'duration_ms' => $durationMs,
-                        'arguments'   => $this->sanitizeForLog($arguments),
-                        'exception'   => get_class($e),
-                        'message'     => $e->getMessage(),
-                        'file'        => $e->getFile() . ':' . $e->getLine(),
-                        'status'      => 'error',
-                    ]);
-
-                    throw $e;
-                }
+        if (is_array($data)) {
+            $cleaned = [];
+            foreach (array_slice($data, 0, 20) as $k => $v) {
+                $cleaned[$k] = self::sanitizeForLog($v, $depth + 1);
             }
+            return $cleaned;
+        }
 
-            /**
-             * Inoltra le proprietà pubbliche al target.
-             */
-            public function __get(string $name)
-            {
-                return $this->target->$name;
+        if (is_object($data)) {
+            if (method_exists($data, 'toArray')) {
+                return array_slice($data->toArray(), 0, 10);
             }
+            return '[Object: ' . get_class($data) . ']';
+        }
 
-            public function __set(string $name, $value): void
-            {
-                $this->target->$name = $value;
-            }
-
-            public function __isset(string $name): bool
-            {
-                return isset($this->target->$name);
-            }
-
-            /**
-             * Sanitizza dati complessi per evitare crash o log troppo pesanti.
-             */
-            protected function sanitizeForLog($data, int $depth = 0)
-            {
-                if ($depth > 3) {
-                    return '[Max Depth Reached]';
-                }
-
-                if (is_null($data) || is_scalar($data)) {
-                    return $data;
-                }
-
-                if (is_array($data)) {
-                    $cleaned = [];
-                    foreach (array_slice($data, 0, 20) as $k => $v) {
-                        $cleaned[$k] = $this->sanitizeForLog($v, $depth + 1);
-                    }
-                    return $cleaned;
-                }
-
-                if (is_object($data)) {
-                    if (method_exists($data, 'toArray')) {
-                        return array_slice($data->toArray(), 0, 10);
-                    }
-                    return '[Object: ' . get_class($data) . ']';
-                }
-
-                return '[Resource/Unknown]';
-            }
-        };
+        return '[Resource/Unknown]';
     }
 }

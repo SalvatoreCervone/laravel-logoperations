@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static mixed trace(string $label, callable $callback)
  * @method static array getSteps()
  * @method static array getTraces()
+ * @method static array getCustomTraces()
  * @method static bool hasCustomTraces()
  * @method static \SalvatoreCervone\LogOperations\LogOperationsManager setSubject(?\Illuminate\Database\Eloquent\Model $subject)
  * @method static ?\Illuminate\Database\Eloquent\Model getSubject()

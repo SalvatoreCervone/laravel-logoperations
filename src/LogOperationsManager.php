@@ -228,6 +228,17 @@ class LogOperationsManager
     }
 
     /**
+     * Restituisce tutti i custom traces raggruppati (steps e traces).
+     */
+    public function getCustomTraces(): array
+    {
+        return [
+            'steps' => $this->steps,
+            'traces' => $this->traces,
+        ];
+    }
+
+    /**
      * Resetta gli step e i trace per la prossima richiesta.
      */
     public function flush(): void
