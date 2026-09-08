@@ -246,4 +246,61 @@ class LogOperationsMiddlewareTest extends TestCase
         $this->assertNotNull($log);
         $this->assertNull($log->stack_trace);
     }
+
+    public function test_only_on_error_does_not_inject_db_callers_into_custom_traces_on_200(): void
+    {
+        config([
+            'logoperations.allowed_methods' => ['*'],
+            'logoperations.stack_trace.enabled' => true,
+            'logoperations.stack_trace.only_on_error' => true,
+            'logoperations.stack_trace.trace_db_callers' => true,
+        ]);
+
+        Route::middleware(LogOperationsMiddleware::class)->get('/test-db-query-on-200', function () {
+            DB::table('log_operazioni')->count();
+            return response()->json(['status' => 'ok']);
+        });
+
+        $response = $this->getJson('/test-db-query-on-200');
+        $response->assertStatus(200);
+
+        $log = OperationLog::where('rotta', '/test-db-query-on-200')->first();
+        $this->assertNotNull($log);
+        $this->assertNull($log->stack_trace);
+        $this->assertNull($log->custom_traces);
+    }
+
+    public function test_db_callers_are_capped_to_max_db_callers(): void
+    {
+        $tracer = new \SalvatoreCervone\LogOperations\Services\StackTracer([
+            'enabled' => true,
+            'trace_db_callers' => true,
+            'max_db_callers' => 5,
+        ]);
+
+        for ($i = 0; $i < 10; $i++) {
+            $tracer->recordDbCaller(['sql' => "SELECT $i"]);
+        }
+
+        $this->assertCount(5, $tracer->getDbCallers());
+    }
+
+    public function test_custom_dashboard_route_is_excluded_from_anti_loop(): void
+    {
+        config([
+            'logoperations.mode' => 'all',
+            'logoperations.dashboard.route' => 'custom-admin/logs-panel',
+        ]);
+
+        Route::middleware(LogOperationsMiddleware::class)->get('/custom-admin/logs-panel', function () {
+            return response()->json(['dashboard' => 'ui']);
+        });
+
+        $response = $this->getJson('/custom-admin/logs-panel');
+        $response->assertStatus(200);
+
+        $this->assertDatabaseMissing('log_operazioni', [
+            'rotta' => '/custom-admin/logs-panel',
+        ]);
+    }
 }

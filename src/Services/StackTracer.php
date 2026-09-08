@@ -22,6 +22,7 @@ class StackTracer
     protected array $excludePaths;
     protected int $maxFrames;
     protected bool $traceDbCallers;
+    protected int $maxDbCallers;
 
     /**
      * Callers delle query DB rilevati durante la richiesta.
@@ -36,6 +37,7 @@ class StackTracer
         $this->excludePaths = $config['exclude_paths'] ?? [];
         $this->maxFrames = $config['max_frames'] ?? 100;
         $this->traceDbCallers = $config['trace_db_callers'] ?? true;
+        $this->maxDbCallers = $config['max_db_callers'] ?? 50;
     }
 
     /**
@@ -221,7 +223,7 @@ class StackTracer
      */
     public function recordDbCaller(array $callerInfo): void
     {
-        if (!$this->traceDbCallers) {
+        if (!$this->traceDbCallers || count($this->dbCallers) >= $this->maxDbCallers) {
             return;
         }
 

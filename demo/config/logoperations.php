@@ -257,6 +257,9 @@ return [
         // Rileva quale funzione del codice applicativo ha originato le query DB
         'trace_db_callers' => true,
 
+        // Numero massimo di query DB tracciabili per singola richiesta (previene payload eccessivi su loop N+1)
+        'max_db_callers' => (int) env('LOG_OPERATIONS_MAX_DB_CALLERS', 50),
+
     ],
 
     /*

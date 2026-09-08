@@ -61,13 +61,11 @@ class LogOperationsMiddleware
         // Livello iniziale di transazione DB prima dell'esecuzione della richiesta
         $initialTransactionLevel = DB::transactionLevel();
 
-        // Registra il listener per tracciare l'origine delle query DB
-        $dbListenerRegistered = false;
+        // Registra il listener per tracciare l'origine delle query DB (una sola volta per processo)
         if ($this->stackTracer->isEnabled()
             && config('logoperations.stack_trace.trace_db_callers', true)
         ) {
             $this->registerDbListener();
-            $dbListenerRegistered = true;
         }
 
         // Esegui la richiesta attraverso la pipeline
@@ -170,16 +168,20 @@ class LogOperationsMiddleware
             $errorMessage = $this->captureError($response, $statusCode);
 
             // Step e trace personalizzati dal codice applicativo
+            // Se only_on_error è attivo e la richiesta ha successo (< 400), db_callers non viene iniettato
+            // per mantenere il log dei 200 OK compatto e leggero.
+            $isSuccessAndOnlyOnError = ($statusCode < 400 && $this->stackTracer->isOnlyOnError());
             $customTraces = null;
+
             if ($this->manager->hasCustomTraces() || $this->manager->hasTags() || $this->manager->hasContext()) {
                 $customTraces = [
                     'steps' => $this->manager->getSteps(),
                     'traces' => $this->manager->getTraces(),
                     'tags' => $this->manager->getTags(),
                     'context' => $this->privacyManager->maskSensitiveData($this->manager->getContext()),
-                    'db_callers' => $this->stackTracer->getDbCallers(),
+                    'db_callers' => $isSuccessAndOnlyOnError ? [] : $this->stackTracer->getDbCallers(),
                 ];
-            } elseif (!empty($this->stackTracer->getDbCallers())) {
+            } elseif (!$isSuccessAndOnlyOnError && !empty($this->stackTracer->getDbCallers())) {
                 $customTraces = [
                     'steps' => [],
                     'traces' => [],
@@ -378,9 +380,10 @@ class LogOperationsMiddleware
     {
         $currentPath = $request->path();
         $apiPrefix = config('logoperations.api_prefix', 'api/logoperations');
+        $dashboardRoute = config('logoperations.dashboard.route', 'logoperations');
 
-        // Esclusione fondamentale anti-loop per le rotte interne del pacchetto
-        if (Str::is([$apiPrefix . '*', 'api/log-operations*'], $currentPath)) {
+        // Esclusione fondamentale anti-loop per le rotte interne del pacchetto (API e Dashboard web)
+        if (Str::is([$apiPrefix . '*', 'api/log-operations*', $dashboardRoute . '*'], $currentPath)) {
             return false;
         }
 

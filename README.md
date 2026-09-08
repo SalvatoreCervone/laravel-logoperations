@@ -159,6 +159,7 @@ return [
         'exclude_paths' => ['vendor/'],
         'max_frames' => 100,
         'trace_db_callers' => true,
+        'max_db_callers' => (int) env('LOG_OPERATIONS_MAX_DB_CALLERS', 50),
     ],
 
     // --------------------------------------------------------------------------
