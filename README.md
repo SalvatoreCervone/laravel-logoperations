@@ -81,53 +81,119 @@ Verranno create le tabelle:
 
 ---
 
-## ⚙️ Configurazione
+## ⚙️ Configurazione Completa (`config/logoperations.php`)
 
-Il file `config/logoperations.php` offre il controllo completo su ogni aspetto:
+Il file `config/logoperations.php` offre il controllo granulare su ogni aspetto del pacchetto. Di seguito la configurazione completa annotata:
 
 ```php
 return [
-    // Abilitazione globale del logger
+    // --------------------------------------------------------------------------
+    // Abilitazione Globale & Modalità di Tracciamento
+    // --------------------------------------------------------------------------
     'enabled' => env('LOG_OPERATIONS_ENABLED', true),
 
-    // Nome della tabella principale (default: log_operazioni)
+    // 'all' = traccia tutte le rotte ammesse | 'selective' = traccia solo rotte attivate in Studio o con alias
+    'mode' => env('LOG_OPERATIONS_MODE', 'all'),
+
+    // --------------------------------------------------------------------------
+    // Nomi Tabelle Database & Connessione
+    // --------------------------------------------------------------------------
+    // Tabella principale per i log operativi, errori e Storyboard polimorfica
     'table_name' => env('LOG_OPERATIONS_TABLE', 'log_operazioni'),
 
-    // Connessione database dedicata (opzionale, per isolare i log dal DB applicativo)
+    // Tabella per la memorizzazione delle regole del Tracking Studio (rotte, proxy metodi, sessioni)
+    'rules_table_name' => env('LOG_OPERATIONS_RULES_TABLE', 'log_operazioni_regole'),
+
+    // Connessione DB dedicata (null = connessione predefinita di Laravel; es. 'mysql_logs' o 'sqlite_logs')
     'database_connection' => env('LOG_OPERATIONS_DB_CONNECTION', null),
 
-    // Verbi HTTP monitorati: ['*'] per tutti oppure lista specifica ['POST', 'PUT', 'DELETE']
+    // --------------------------------------------------------------------------
+    // Filtri Richieste & Campionamento (Sampling)
+    // --------------------------------------------------------------------------
+    // Verbi HTTP monitorati: ['*'] per tutti oppure lista specifica ['POST', 'PUT', 'DELETE', 'GET']
     'allowed_methods' => ['*'],
 
-    // Codici di stato esclusi dal logging
+    // Codici di stato esclusi dal logging (es. errori di validazione form)
     'excluded_status_codes' => [422],
 
     // Rotte escluse (per evitare loop di auto-logging)
     'excluded_routes' => ['api/logoperations*', 'api/log-operations*', 'telescope*'],
 
-    // Configurazione Stack Trace a 2 livelli
+    // Percentuale di campionamento chiamate riuscite 2xx (0-100%). Gli errori >= 400 sono sempre loggati al 100%
+    'sampling_rate' => env('LOG_OPERATIONS_SAMPLING_RATE', 100),
+
+    // --------------------------------------------------------------------------
+    // Elaborazione Asincrona su Coda (Queue Worker)
+    // --------------------------------------------------------------------------
+    'queue' => [
+        'enabled' => env('LOG_OPERATIONS_QUEUE_ENABLED', false),
+        'connection' => env('LOG_OPERATIONS_QUEUE_CONNECTION', null),
+        'queue' => env('LOG_OPERATIONS_QUEUE_NAME', 'log-operations'),
+        'tries' => 3,
+        'backoff' => [5, 10, 30],
+        'failed_jobs_threshold' => 5,
+        'alert_email' => env('LOG_OPERATIONS_QUEUE_ALERT_EMAIL', null),
+    ],
+
+    // --------------------------------------------------------------------------
+    // API REST & Sicurezza Accesso
+    // --------------------------------------------------------------------------
+    'api_prefix' => env('LOG_OPERATIONS_API_PREFIX', 'api/logoperations'),
+    'api_middleware' => ['api'],
+    'gate' => 'viewLogOperations',
+    'allow_in_local' => true,
+
+    // --------------------------------------------------------------------------
+    // Stack Trace Intelligente a Due Livelli
+    // --------------------------------------------------------------------------
     'stack_trace' => [
         'enabled' => true,
         'only_on_error' => false,
-        'default_view' => 'core',         // 'core' (app/) o 'full' (completo)
-        'project_paths' => ['app/'],      // Cartelle considerate proprietarie
+        'default_view' => 'core',         // 'core' (solo app/) o 'full' (intero albero vendor)
+        'project_paths' => ['app/'],      // Percorsi considerati codice applicativo proprietario
+        'exclude_paths' => ['vendor/'],
         'max_frames' => 100,
         'trace_db_callers' => true,
     ],
 
-    // Gestione transazioni non terminate
+    // --------------------------------------------------------------------------
+    // Gestione & Ripristino Automatico Transazioni DB
+    // --------------------------------------------------------------------------
     'transactions' => [
         'manage_unfinished' => true,
-        'rollback_on_error' => true,      // Esegue rollback ciclico su HTTP >= 400
-        'commit_on_success' => false,     // false = rollback di sicurezza anche su successo
+        'rollback_on_error' => true,      // Esegue rollback di sicurezza su HTTP >= 400
+        'commit_on_success' => false,     // false = sicurezza preventiva anche su esito 200
         'log_transaction_state' => true,
     ],
 
-    // Campi sensibili mascherati automaticamente nei parametri
+    // --------------------------------------------------------------------------
+    // Privacy, GDPR & Mascheramento Dati Sensibili
+    // --------------------------------------------------------------------------
     'mask_fields' => ['password', 'password_confirmation', 'token', 'secret', 'authorization', 'credit_card'],
+    'privacy' => [
+        'anonymize_ip' => env('LOG_OPERATIONS_ANONYMIZE_IP', false),
+        'anonymize_ip_mask' => 'xxx',     // Mascheratura ultimo ottetto IPv4 ('xxx' o '0')
+        'log_headers' => false,
+        'mask_headers' => ['authorization', 'php-auth-pw', 'cookie', 'x-csrf-token', 'x-xsrf-token'],
+    ],
 
-    // Campi ricercabili per il modello utente
-    // Configurazione Allarmi e Notifiche Multi-Canale
+    // Colonne da interrogare per la ricerca utenti nel Tracking Studio
+    'user_search_fields' => ['name', 'cognome', 'email'],
+
+    // --------------------------------------------------------------------------
+    // Dashboard Web Standalone
+    // --------------------------------------------------------------------------
+    'dashboard' => [
+        'enabled' => env('LOG_OPERATIONS_DASHBOARD_ENABLED', true),
+        'route' => 'logoperations',
+        'middleware' => ['web'],
+        'per_page' => 20,
+        'per_page_options' => [15, 20, 25, 50, 100],
+    ],
+
+    // --------------------------------------------------------------------------
+    // Sistema di Allarmi & Notifiche Multi-Canale
+    // --------------------------------------------------------------------------
     'alerts' => [
         'enabled' => env('LOG_OPERATIONS_ALERTS_ENABLED', false),
         'channels' => ['mail', 'slack', 'discord', 'webhook'],
@@ -147,7 +213,19 @@ return [
         ],
     ],
 
-    // Nome identificativo dell'applicazione (per ambienti multi-app)
+    // --------------------------------------------------------------------------
+    // Retention Policy & Salvaguardia Audit Trail
+    // --------------------------------------------------------------------------
+    'retention' => [
+        'enabled' => env('LOG_OPERATIONS_RETENTION_ENABLED', false),
+        'days' => env('LOG_OPERATIONS_RETENTION_DAYS', 90),
+        'preserve_storyboards' => true,   // Protegge al 100% tutti i record con subject_id
+        'preserve_errors' => true,        // Preserva tutti i log con codice HTTP >= 400
+        'preserve_mutations' => false,    // true = preserva anche POST/PUT/DELETE
+        'chunk_size' => 1000,
+    ],
+
+    // Nome identificativo dell'applicazione (per ambienti multi-app o microservizi)
     'app_name' => env('LOG_OPERATIONS_APP_NAME', env('APP_NAME', 'laravel')),
 ];
 ```
