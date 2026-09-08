@@ -117,8 +117,10 @@ class LogOperationsMiddlewareTest extends TestCase
     {
         config(['logoperations.mode' => 'selective']);
 
-        // Rotta registrata con middleware globale ma SENZA alias esplicito o regola attiva
-        Route::middleware(LogOperationsMiddleware::class)->get('/unmonitored-route', function () {
+        // Middleware attivo nella pipeline globale
+        $this->app->make(\Illuminate\Contracts\Http\Kernel::class)->pushMiddleware(LogOperationsMiddleware::class);
+
+        Route::get('/unmonitored-route', function () {
             return response()->json(['status' => 'ok']);
         });
 
@@ -143,6 +145,69 @@ class LogOperationsMiddlewareTest extends TestCase
 
         $this->assertDatabaseHas('log_operazioni', [
             'rotta' => '/monitored-route',
+        ]);
+    }
+
+    public function test_selective_mode_logs_routes_with_explicit_class_name(): void
+    {
+        config(['logoperations.mode' => 'selective']);
+
+        Route::middleware(LogOperationsMiddleware::class)->get('/monitored-by-class', function () {
+            return response()->json(['status' => 'ok']);
+        });
+
+        $response = $this->getJson('/monitored-by-class');
+        $response->assertStatus(200);
+
+        $this->assertDatabaseHas('log_operazioni', [
+            'rotta' => '/monitored-by-class',
+        ]);
+    }
+
+    public function test_selective_mode_catches_500_errors_on_unmonitored_routes_with_safety_net(): void
+    {
+        config([
+            'logoperations.mode' => 'selective',
+            'logoperations.log_uncaught_errors' => true,
+        ]);
+
+        $this->app->make(\Illuminate\Contracts\Http\Kernel::class)->pushMiddleware(LogOperationsMiddleware::class);
+
+        Route::get('/unmonitored-crash', function () {
+            return response()->json(['error' => 'Fatal crash'], 500);
+        });
+
+        $response = $this->getJson('/unmonitored-crash');
+        $response->assertStatus(500);
+
+        $this->assertDatabaseHas('log_operazioni', [
+            'rotta' => '/unmonitored-crash',
+            'codicehttp' => 500,
+        ]);
+
+        $log = OperationLog::where('rotta', '/unmonitored-crash')->first();
+        $this->assertNotNull($log);
+        $this->assertNotNull($log->stack_trace);
+    }
+
+    public function test_selective_mode_ignores_500_errors_on_unmonitored_routes_when_safety_net_disabled(): void
+    {
+        config([
+            'logoperations.mode' => 'selective',
+            'logoperations.log_uncaught_errors' => false,
+        ]);
+
+        $this->app->make(\Illuminate\Contracts\Http\Kernel::class)->pushMiddleware(LogOperationsMiddleware::class);
+
+        Route::get('/unmonitored-crash-disabled', function () {
+            return response()->json(['error' => 'Fatal crash'], 500);
+        });
+
+        $response = $this->getJson('/unmonitored-crash-disabled');
+        $response->assertStatus(500);
+
+        $this->assertDatabaseMissing('log_operazioni', [
+            'rotta' => '/unmonitored-crash-disabled',
         ]);
     }
 

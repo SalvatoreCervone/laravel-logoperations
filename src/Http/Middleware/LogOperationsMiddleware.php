@@ -392,17 +392,25 @@ class LogOperationsMiddleware
         }
 
         // Gestione modalità selettiva: se 'selective', logga solo se la rotta ha il middleware applicato esplicitamente
+        // oppure se si verifica un errore grave (status >= 500) con paracadute 'log_uncaught_errors' attivo
         $mode = config('logoperations.mode', 'all');
+        $catchUncaughtError = false;
+
         if ($mode === 'selective') {
             $route = $request->route();
             $hasExplicitMiddleware = false;
             if ($route && method_exists($route, 'gatherMiddleware')) {
                 $middlewares = $route->gatherMiddleware();
                 $hasExplicitMiddleware = in_array('log.operations', $middlewares, true)
-                    || in_array('logoperations', $middlewares, true);
+                    || in_array('logoperations', $middlewares, true)
+                    || in_array(self::class, $middlewares, true)
+                    || in_array('\\' . self::class, $middlewares, true);
             }
 
-            if (!$hasExplicitMiddleware) {
+            // Paracadute "Safety Net": se la rotta non è esplicitamente monitorata ma si verifica un errore di sistema 500+
+            $catchUncaughtError = ($statusCode >= 500) && config('logoperations.log_uncaught_errors', true);
+
+            if (!$hasExplicitMiddleware && !$catchUncaughtError) {
                 return false;
             }
         }
@@ -414,9 +422,9 @@ class LogOperationsMiddleware
             return false;
         }
 
-        // Verifica verbi HTTP consentiti
+        // Verifica verbi HTTP consentiti (il safety net per crash 500 bypassa il filtro sui verbi)
         $allowedMethods = config('logoperations.allowed_methods', ['*']);
-        if (!in_array('*', $allowedMethods)) {
+        if (!$catchUncaughtError && !in_array('*', $allowedMethods)) {
             if (!in_array(strtoupper($verbo), array_map('strtoupper', $allowedMethods))) {
                 return false;
             }

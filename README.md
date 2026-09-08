@@ -96,6 +96,9 @@ return [
     // 'all': traccia a tappeto tutte le rotte ammesse
     'mode' => env('LOG_OPERATIONS_MODE', 'selective'),
 
+    // Paracadute Errori 500: in modalità 'selective', cattura comunque crash ed eccezioni 500 anche su rotte non monitorate
+    'log_uncaught_errors' => env('LOG_OPERATIONS_LOG_UNCAUGHT_ERRORS', true),
+
     // --------------------------------------------------------------------------
     // Nomi Tabelle Database & Connessione
     // --------------------------------------------------------------------------
@@ -266,30 +269,40 @@ Il pacchetto supporta **3 diverse modalità di utilizzo** per adattarsi a qualsi
 
 ---
 
-### 🎛️ Modalità 1: Globale Selettivo (Zero-Code da Pannello) — *Consigliata*
-Registri il middleware a livello globale, ma configuri `'mode' => 'selective'` (in `config/logoperations.php` o `.env` con `LOG_OPERATIONS_MODE=selective`).
-- **Comportamento**: Di default **non logga alcuna rotta**.
-- **Controllo**: Apri il **Tracking Studio** e attivi `[ON]` con 1 click **solo le rotte che ti interessano** (es. ordini, pagamenti, contratti).
-- **Vantaggi**: Zero modifiche ai file di rotta, rotte tipologiche/lookup escluse di default, database sempre leggero e pulito.
+### 🎛️ Modalità 1: Globale Selettivo (Zero-Code da Pannello) — *Consigliata e Default in v1.3+*
+Registri il middleware a livello globale con il default di fabbrica `'mode' => 'selective'`.
+- **Comportamento**: Di default **non logga alcuna rotta standard** con esito 200/300/404.
+- **Controllo Zero-Code**: Apri il **Tracking Studio** e attivi `[ON]` con 1 click solo le rotte o metodi che ti interessano.
+- **Paracadute Errori 500 (Safety Net)**: Se si verifica un'eccezione non gestita o un crash `HTTP 500` anche su una rotta non monitorata, il middleware la cattura automaticamente con l'intero stack trace, garantendo che nessun disservizio passi inosservato (disattivabile con `LOG_OPERATIONS_LOG_UNCAUGHT_ERRORS=false`).
+- **Vantaggi**: Zero modifiche al codice, tipologiche e polling esclusi di default, database sempre leggero e pulito.
 
 ---
 
 ### 🎯 Modalità 2: Mirato da Codice (Gruppi o Singole Rotte)
-Non registri il middleware globale. Applichi l'alias `log.operations` solo ai gruppi di rotte o risorse business che devono avere una Storyboard:
+Applichi il middleware direttamente alle rotte o ai gruppi di risorse business. Sono supportati indifferentemente sia l'alias testuale sia la classe (consigliata per Laravel 11/12):
 
 ```php
-// Rotte tipologiche / lookup: NESSUN LOG
+use SalvatoreCervone\LogOperations\Http\Middleware\LogOperationsMiddleware;
+
+// 🚫 Rotte tipologiche / lookup / statiche: NESSUN LOG
 Route::prefix('tipologiche')->group(function () {
     Route::get('stati-ordine', [LookupController::class, 'orderStatuses']);
     Route::get('comuni', [LookupController::class, 'cities']);
 });
 
-// Rotte operative di business: MONITORATE per la Storyboard
-Route::middleware('log.operations')->group(function () {
-    Route::resource('ordini', OrderController::class);
-    Route::resource('fatture', InvoiceController::class);
+// ✅ Rotte operative di business: MONITORATE per la Storyboard
+// Supporta sia l'alias 'log.operations' sia la classe LogOperationsMiddleware::class:
+Route::middleware(LogOperationsMiddleware::class)->group(function () {
+    Route::apiResource('ordini', OrderController::class);
+    Route::apiResource('fatture', InvoiceController::class);
+    Route::post('pagamenti/checkout', [PaymentController::class, 'checkout']);
 });
 ```
+
+> [!TIP]
+> **Best Practice per `Route::resource` vs `Route::apiResource`:**
+> Se utilizzi `Route::resource()` per viste web HTML tradizionali insieme a `allowed_methods => ['*']`, verranno intercettate anche le semplici visualizzazioni dei form HTML vuoti (`GET /ordini/create`, `GET /ordini/{id}/edit`).
+> Per evitarlo, prediligi `Route::apiResource()` per gli endpoint REST, oppure aggiungi `'*/create'` e `'*/edit'` in `excluded_routes`.
 
 ---
 
@@ -806,7 +819,19 @@ Apri il browser su:
 
 ---
 
+## 📦 Versioning & Changelog
+
+- **v1.3.0** *(Raccomandata)*:
+  - **Default Architetturale Selettivo (Scenario A)**: `mode` predefinito su `'selective'`, `allowed_methods` su `['*']` e `stack_trace.only_on_error` su `true`. Massima pulizia del DB e zero sovraccarico per tipologiche e consultazioni ordinarie.
+  - **Supporto FQCN Middleware**: Supporto completo a `Route::middleware(LogOperationsMiddleware::class)` oltre ai classici alias stringa `'log.operations'` / `'logoperations'`.
+  - **Paracadute Errori 500 (Safety Net)**: Aggiunta opzione `log_uncaught_errors` (default: `true`) che intercetta e registra automaticamente con full stack trace qualsiasi crash `HTTP 500` anche su rotte non esplicitamente monitorate.
+  - **Best Practice Risorse Web**: Linee guida per l'esclusione di viste form HTML (`*/create`, `*/edit`) in `excluded_routes`.
+- **v1.2.x**: Storyboard polimorfica per entità Eloquent, Tracking Studio dinamico Zero-Code, Alerting multi-canale (Slack, Discord, Mail, Webhook), Retention Policy e interfaccia Dashboard Dark-Slate.
+
+---
+
 ## 📄 Licenza
 
 Distribuito con licenza MIT.
+
 

@@ -40,6 +40,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Paracadute Errori di Sistema (Safety Net)
+    |--------------------------------------------------------------------------
+    |
+    | Se abilitato (true), in modalità 'selective' cattura automaticamente
+    | qualsiasi errore grave non gestito o crash (status >= 500 ed eccezioni)
+    | anche su rotte NON esplicitamente monitorate, salvando lo stack trace.
+    | Garantisce che nessun crash applicativo passi inosservato.
+    |
+    */
+
+    'log_uncaught_errors' => env('LOG_OPERATIONS_LOG_UNCAUGHT_ERRORS', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Nome Tabella
     |--------------------------------------------------------------------------
     |
