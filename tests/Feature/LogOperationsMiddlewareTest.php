@@ -145,4 +145,40 @@ class LogOperationsMiddlewareTest extends TestCase
             'rotta' => '/monitored-route',
         ]);
     }
+
+    public function test_it_excludes_get_requests_when_allowed_methods_excludes_get(): void
+    {
+        config(['logoperations.allowed_methods' => ['POST', 'PUT', 'PATCH', 'DELETE']]);
+
+        $response = $this->getJson('/test-get');
+        $response->assertStatus(200);
+
+        $this->assertDatabaseMissing('log_operazioni', [
+            'rotta' => '/test-get',
+        ]);
+
+        $postResponse = $this->postJson('/test-post', ['key' => 'value']);
+        $postResponse->assertStatus(201);
+
+        $this->assertDatabaseHas('log_operazioni', [
+            'rotta' => '/test-post',
+            'verbo' => 'post',
+        ]);
+    }
+
+    public function test_only_on_error_does_not_capture_stack_trace_on_200(): void
+    {
+        config([
+            'logoperations.allowed_methods' => ['*'],
+            'logoperations.stack_trace.enabled' => true,
+            'logoperations.stack_trace.only_on_error' => true,
+        ]);
+
+        $response = $this->postJson('/test-post', ['item' => 1]);
+        $response->assertStatus(201);
+
+        $log = OperationLog::where('rotta', '/test-post')->first();
+        $this->assertNotNull($log);
+        $this->assertNull($log->stack_trace);
+    }
 }

@@ -36,7 +36,7 @@ return [
     |
     */
 
-    'mode' => env('LOG_OPERATIONS_MODE', 'all'),
+    'mode' => env('LOG_OPERATIONS_MODE', 'selective'),
 
     /*
     |--------------------------------------------------------------------------
@@ -219,7 +219,7 @@ return [
         'enabled' => env('LOG_OPERATIONS_STACK_ENABLED', true),
 
         // Se true, lo stack viene registrato solo su risposte di errore (>= 400)
-        'only_on_error' => false,
+        'only_on_error' => env('LOG_OPERATIONS_STACK_ONLY_ON_ERROR', true),
 
         // Vista di default nel componente Vue: 'core' oppure 'full'
         'default_view' => 'core',

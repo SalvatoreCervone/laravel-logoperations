@@ -36,6 +36,7 @@ abstract class TestCase extends OrchestraTestCase
         $app['config']->set('logoperations.enabled', true);
         $app['config']->set('logoperations.mode', 'all');
         $app['config']->set('logoperations.allow_in_local', true);
+        $app['config']->set('logoperations.allowed_methods', ['*']);
     }
 
     /**

@@ -92,8 +92,9 @@ return [
     // --------------------------------------------------------------------------
     'enabled' => env('LOG_OPERATIONS_ENABLED', true),
 
-    // 'all' = traccia tutte le rotte ammesse | 'selective' = traccia solo rotte attivate in Studio o con alias
-    'mode' => env('LOG_OPERATIONS_MODE', 'all'),
+    // 'selective' (default consigliato): traccia solo rotte attivate in Studio o con alias
+    // 'all': traccia a tappeto tutte le rotte ammesse
+    'mode' => env('LOG_OPERATIONS_MODE', 'selective'),
 
     // --------------------------------------------------------------------------
     // Nomi Tabelle Database & Connessione
@@ -110,7 +111,8 @@ return [
     // --------------------------------------------------------------------------
     // Filtri Richieste & Campionamento (Sampling)
     // --------------------------------------------------------------------------
-    // Verbi HTTP monitorati: ['*'] per tutti oppure lista specifica ['POST', 'PUT', 'DELETE', 'GET']
+    // Verbi HTTP monitorati: ['*'] per tutti i verbi sulle rotte selezionate
+    // oppure lista specifica come ['POST', 'PUT', 'PATCH', 'DELETE']
     'allowed_methods' => ['*'],
 
     // Codici di stato esclusi dal logging (es. errori di validazione form)
@@ -147,8 +149,8 @@ return [
     // Stack Trace Intelligente a Due Livelli
     // --------------------------------------------------------------------------
     'stack_trace' => [
-        'enabled' => true,
-        'only_on_error' => false,
+        'enabled' => env('LOG_OPERATIONS_STACK_ENABLED', true),
+        'only_on_error' => env('LOG_OPERATIONS_STACK_ONLY_ON_ERROR', true), // Salva stack trace solo su errori (>= 400)
         'default_view' => 'core',         // 'core' (solo app/) o 'full' (intero albero vendor)
         'project_paths' => ['app/'],      // Percorsi considerati codice applicativo proprietario
         'exclude_paths' => ['vendor/'],
