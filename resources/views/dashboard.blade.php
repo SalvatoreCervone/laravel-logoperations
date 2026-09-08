@@ -6,39 +6,66 @@
     <title>LogOperations — {{ $appName }} Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <style>
         :root {
-            --bg-dark: #090d16;
-            --surface-dark: #0f172a;
-            --surface-card: #1e293b;
-            --surface-hover: #273549;
-            --border-color: #334155;
-            --primary: #6366f1;
-            --primary-hover: #4f46e5;
-            --accent: #8b5cf6;
+            --bg-base: #0b0f17;
+            --surface-primary: #111622;
+            --surface-secondary: #161d2a;
+            --surface-tertiary: #1b2434;
+            --surface-hover: #1f293b;
+            --border-subtle: #1e2638;
+            --border-strong: #2a364d;
+            
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --primary-subtle: rgba(59, 130, 246, 0.12);
+            --primary-border: rgba(59, 130, 246, 0.25);
+            
+            --accent: #6366f1;
+            --accent-subtle: rgba(99, 102, 241, 0.12);
+            
             --success: #10b981;
+            --success-subtle: rgba(16, 185, 129, 0.1);
+            --success-border: rgba(16, 185, 129, 0.25);
+            --success-text: #34d399;
+            
             --warning: #f59e0b;
+            --warning-subtle: rgba(245, 158, 11, 0.1);
+            --warning-border: rgba(245, 158, 11, 0.25);
+            --warning-text: #fbbf24;
+            
             --danger: #ef4444;
-            --text-main: #f8fafc;
+            --danger-subtle: rgba(239, 68, 68, 0.1);
+            --danger-border: rgba(239, 68, 68, 0.25);
+            --danger-text: #f87171;
+            
+            --info: #0ea5e9;
+            --info-subtle: rgba(14, 165, 233, 0.1);
+            --info-text: #38bdf8;
+            
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
             --text-muted: #94a3b8;
+            --text-subtle: #64748b;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background-color: var(--bg-dark);
-            color: var(--text-main);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-primary);
             min-height: 100vh;
             line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
         }
 
         /* Top Header */
         .dash-header {
-            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-            border-bottom: 2px solid var(--primary);
-            padding: 14px 24px;
+            background: var(--surface-primary);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 12px 24px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -47,7 +74,6 @@
             position: sticky;
             top: 0;
             z-index: 100;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
         }
 
         .dash-brand {
@@ -57,183 +83,222 @@
         }
 
         .brand-badge {
-            background: linear-gradient(135deg, #6366f1, #a855f7);
-            color: #fff;
-            font-weight: 800;
+            background: var(--primary-subtle);
+            color: #60a5fa;
+            border: 1px solid var(--primary-border);
+            font-weight: 700;
             font-size: 11px;
-            padding: 4px 8px;
-            border-radius: 6px;
-            letter-spacing: 0.05em;
+            padding: 3px 8px;
+            border-radius: 5px;
+            letter-spacing: 0.06em;
+            font-family: 'JetBrains Mono', monospace;
         }
 
         .brand-title {
-            font-size: 17px;
-            font-weight: 800;
-            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
         }
 
         .app-badge {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--text-muted);
-            background: #090d16;
+            background: var(--bg-base);
             padding: 2px 8px;
             border-radius: 4px;
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border-subtle);
+            font-weight: 500;
+            font-family: 'JetBrains Mono', monospace;
         }
 
         .dash-controls {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
         }
 
-        .btn-refresh {
-            background: #4f46e5;
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            padding: 8px 14px;
-            font-size: 13px;
-            font-weight: 700;
+        .btn-action {
+            background: var(--surface-secondary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            padding: 6px 13px;
+            font-size: 12.5px;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
+            transition: all 0.15s ease;
+            display: inline-flex;
             align-items: center;
             gap: 6px;
         }
-        .btn-refresh:hover { background: #4338ca; }
+        .btn-action:hover {
+            background: var(--surface-hover);
+            color: var(--text-primary);
+            border-color: var(--border-strong);
+        }
+        .btn-action.btn-primary {
+            background: var(--primary);
+            color: #ffffff;
+            border-color: var(--primary);
+            font-weight: 600;
+        }
+        .btn-action.btn-primary:hover {
+            background: var(--primary-hover);
+            border-color: var(--primary-hover);
+        }
 
         /* Main Container */
         .dash-container {
-            max-width: 1440px;
+            max-width: 1480px;
             margin: 0 auto;
-            padding: 24px;
+            padding: 20px 24px;
         }
 
         /* Nav Switcher Tabs */
         .main-nav {
             display: flex;
-            gap: 8px;
-            margin-bottom: 24px;
-            background: var(--surface-dark);
-            padding: 6px;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
+            gap: 4px;
+            margin-bottom: 20px;
+            background: var(--surface-primary);
+            padding: 4px;
+            border-radius: 8px;
+            border: 1px solid var(--border-subtle);
             overflow-x: auto;
         }
 
         .main-tab {
             background: transparent;
-            border: none;
+            border: 1px solid transparent;
             color: var(--text-muted);
-            padding: 10px 18px;
-            font-size: 14px;
-            font-weight: 600;
-            border-radius: 8px;
+            padding: 7px 14px;
+            font-size: 13px;
+            font-weight: 500;
+            border-radius: 6px;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.15s ease;
             white-space: nowrap;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 8px;
         }
         .main-tab:hover {
-            color: #fff;
-            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+            background: var(--surface-secondary);
         }
         .main-tab.active {
-            background: var(--primary);
-            color: #fff;
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+            background: var(--surface-secondary);
+            color: var(--text-primary);
+            border-color: var(--border-strong);
+            font-weight: 600;
+        }
+
+        .tab-icon {
+            display: inline-flex;
+            align-items: center;
+            opacity: 0.7;
+        }
+        .main-tab.active .tab-icon {
+            opacity: 1;
+            color: var(--primary);
         }
 
         .session-pulse {
-            width: 8px;
-            height: 8px;
+            width: 7px;
+            height: 7px;
             border-radius: 50%;
-            background: #10b981;
-            box-shadow: 0 0 8px #10b981;
+            background: var(--success);
+            box-shadow: 0 0 6px var(--success);
             display: inline-block;
-            animation: pulse 1.5s infinite;
+            animation: pulse 1.8s infinite;
         }
         @keyframes pulse {
-            0% { transform: scale(0.9); opacity: 0.8; }
-            50% { transform: scale(1.3); opacity: 1; }
-            100% { transform: scale(0.9); opacity: 0.8; }
+            0% { transform: scale(0.9); opacity: 0.7; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.9); opacity: 0.7; }
         }
 
         /* KPI Grid */
         .kpi-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 16px;
-            margin-bottom: 24px;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 14px;
+            margin-bottom: 20px;
         }
         .kpi-card {
-            background: var(--surface-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 16px 20px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            background: var(--surface-primary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 16px 18px;
             position: relative;
-            overflow: hidden;
+            transition: border-color 0.15s ease;
         }
-        .kpi-card::after {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0; height: 3px;
-            background: var(--primary);
+        .kpi-card:hover {
+            border-color: var(--border-strong);
         }
-        .kpi-card.kpi-error::after { background: var(--danger); }
-        .kpi-card.kpi-time::after { background: #38bdf8; }
-        .kpi-card.kpi-tx::after { background: #a855f7; }
 
-        .kpi-label {
-            font-size: 12px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            font-weight: 700;
+        .kpi-top {
             display: flex;
             align-items: center;
-            gap: 6px;
+            justify-content: space-between;
+            margin-bottom: 8px;
         }
-        .kpi-value {
-            font-size: 28px;
-            font-weight: 800;
-            color: #fff;
-            margin: 6px 0 2px 0;
-            font-family: 'JetBrains Mono', monospace;
-        }
-        .kpi-sub {
+
+        .kpi-label {
             font-size: 11px;
+            color: var(--text-subtle);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-weight: 600;
+        }
+
+        .kpi-icon {
+            color: var(--text-subtle);
+            display: flex;
+            align-items: center;
+        }
+
+        .kpi-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-feature-settings: 'tnum';
+            line-height: 1.2;
+            margin-bottom: 4px;
+        }
+
+        .kpi-card.kpi-error .kpi-value {
+            color: var(--danger-text);
+        }
+
+        .kpi-sub {
+            font-size: 11.5px;
             color: var(--text-muted);
         }
 
         /* Content Card */
         .content-card {
-            background: var(--surface-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px;
+            background: var(--surface-primary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 18px 20px;
             margin-bottom: 24px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
         .content-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
             flex-wrap: wrap;
             gap: 12px;
         }
         .content-title {
-            font-size: 16px;
-            font-weight: 700;
-            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
             display: flex;
             align-items: center;
             gap: 8px;
@@ -241,40 +306,58 @@
 
         /* Filter Toolbar */
         .filter-toolbar {
-            background: #0f172a;
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 16px;
-            margin-bottom: 20px;
+            background: var(--bg-base);
+            border: 1px solid var(--border-subtle);
+            border-radius: 7px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
         }
         .filter-pills-row {
             display: flex;
             gap: 8px;
             align-items: center;
             flex-wrap: wrap;
-            padding-bottom: 14px;
-            margin-bottom: 14px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 12px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--border-subtle);
         }
         .filter-pill {
-            background: #1e293b;
-            border: 1px solid var(--border-color);
+            background: var(--surface-primary);
+            border: 1px solid var(--border-subtle);
             color: var(--text-muted);
-            border-radius: 20px;
-            padding: 4px 12px;
+            border-radius: 6px;
+            padding: 4px 11px;
             font-size: 12px;
-            font-weight: 600;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
         }
-        .filter-pill:hover { color: #fff; background: var(--surface-hover); }
+        .filter-pill:hover {
+            color: var(--text-primary);
+            background: var(--surface-secondary);
+            border-color: var(--border-strong);
+        }
         .filter-pill.active {
-            background: var(--primary);
-            color: #fff;
-            border-color: var(--primary);
+            background: var(--primary-subtle);
+            color: #60a5fa;
+            border-color: var(--primary-border);
+            font-weight: 600;
         }
-        .filter-pill.pill-danger.active { background: var(--danger); border-color: var(--danger); }
-        .filter-pill.pill-warning.active { background: var(--warning); border-color: var(--warning); color: #000; }
+        .filter-pill.pill-danger.active {
+            background: var(--danger-subtle);
+            border-color: var(--danger-border);
+            color: var(--danger-text);
+            font-weight: 600;
+        }
+        .filter-pill.pill-warning.active {
+            background: var(--warning-subtle);
+            border-color: var(--warning-border);
+            color: var(--warning-text);
+            font-weight: 600;
+        }
 
         .filter-fields-grid {
             display: grid;
@@ -285,65 +368,85 @@
         .filter-field {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 5px;
         }
         .filter-field-label {
             font-size: 11px;
-            color: var(--text-muted);
+            color: var(--text-subtle);
             font-weight: 600;
             text-transform: uppercase;
+            letter-spacing: 0.04em;
         }
         .filter-input-ctrl {
-            background: #090d16;
-            border: 1px solid var(--border-color);
+            background: var(--surface-primary);
+            border: 1px solid var(--border-subtle);
             border-radius: 6px;
-            padding: 8px 12px;
-            color: #fff;
-            font-size: 13px;
+            padding: 7px 11px;
+            color: var(--text-primary);
+            font-size: 12.5px;
             outline: none;
             width: 100%;
+            transition: border-color 0.15s ease;
         }
-        .filter-input-ctrl:focus { border-color: var(--primary); }
+        .filter-input-ctrl:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+        }
+        .filter-input-ctrl option {
+            background: var(--surface-primary);
+            color: var(--text-primary);
+        }
 
         .btn-reset-filters {
             background: transparent;
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border-subtle);
             color: var(--text-muted);
-            padding: 8px 12px;
+            padding: 7px 11px;
             border-radius: 6px;
             cursor: pointer;
             font-size: 12px;
-            font-weight: 600;
-            transition: all 0.2s ease;
+            font-weight: 500;
+            transition: all 0.15s ease;
             width: 100%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
-        .btn-reset-filters:hover { background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3); }
+        .btn-reset-filters:hover {
+            background: var(--danger-subtle);
+            color: var(--danger-text);
+            border-color: var(--danger-border);
+        }
 
         /* Tables */
         .table-responsive {
             overflow-x: auto;
             position: relative;
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
+            background: var(--surface-primary);
         }
         .data-table {
             width: 100%;
             border-collapse: collapse;
             text-align: left;
-            font-size: 13px;
+            font-size: 12.5px;
         }
         .data-table th {
-            background: #0f172a;
-            color: var(--text-muted);
-            padding: 12px 14px;
-            font-weight: 700;
+            background: var(--surface-secondary);
+            color: var(--text-subtle);
+            padding: 10px 14px;
+            font-weight: 600;
             text-transform: uppercase;
-            font-size: 11px;
+            font-size: 10.5px;
             letter-spacing: 0.05em;
-            border-bottom: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-subtle);
         }
         .data-table td {
-            padding: 12px 14px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            color: #cbd5e1;
+            padding: 10px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.035);
+            color: var(--text-secondary);
         }
         .data-table tr:hover td {
             background: var(--surface-hover);
@@ -351,21 +454,22 @@
 
         /* Badges */
         .badge {
-            padding: 3px 8px;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-size: 10.5px;
+            font-weight: 600;
             display: inline-block;
             font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 0.02em;
         }
-        .badge-get { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
-        .badge-post { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
-        .badge-put, .badge-patch { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
-        .badge-delete { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .badge-get { background: var(--success-subtle); color: var(--success-text); border: 1px solid var(--success-border); }
+        .badge-post { background: var(--primary-subtle); color: #60a5fa; border: 1px solid var(--primary-border); }
+        .badge-put, .badge-patch { background: var(--warning-subtle); color: var(--warning-text); border: 1px solid var(--warning-border); }
+        .badge-delete { background: var(--danger-subtle); color: var(--danger-text); border: 1px solid var(--danger-border); }
 
-        .status-200 { color: #34d399; font-weight: 700; }
-        .status-400 { color: #fbbf24; font-weight: 700; }
-        .status-500 { color: #f87171; font-weight: 700; background: rgba(239, 68, 68, 0.15); padding: 2px 6px; border-radius: 4px; }
+        .status-200 { color: var(--success-text); font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+        .status-400 { color: var(--warning-text); font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+        .status-500 { color: var(--danger-text); font-weight: 600; background: var(--danger-subtle); border: 1px solid var(--danger-border); padding: 1px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; }
 
         .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
 
@@ -374,100 +478,110 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 16px 0 4px 0;
-            border-top: 1px solid var(--border-color);
-            margin-top: 16px;
+            padding: 14px 2px 2px 2px;
+            margin-top: 14px;
             flex-wrap: wrap;
             gap: 12px;
         }
         .page-btn {
-            background: #0f172a;
-            border: 1px solid var(--border-color);
-            color: #fff;
+            background: var(--surface-primary);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
             border-radius: 6px;
-            padding: 6px 12px;
+            padding: 5px 10px;
             font-size: 12px;
-            font-weight: 600;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.15s ease;
         }
-        .page-btn:hover:not(:disabled) { background: var(--surface-hover); }
-        .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .page-btn:hover:not(:disabled) {
+            background: var(--surface-hover);
+            color: var(--text-primary);
+            border-color: var(--border-strong);
+        }
+        .page-btn:disabled { opacity: 0.35; cursor: not-allowed; }
         .page-btn.active {
             background: var(--primary);
             border-color: var(--primary);
-            color: #fff;
+            color: #ffffff;
+            font-weight: 600;
         }
 
         /* Toggle Switches */
         .toggle-switch {
             position: relative;
             display: inline-block;
-            width: 36px;
-            height: 20px;
+            width: 32px;
+            height: 18px;
         }
         .toggle-switch input { opacity: 0; width: 0; height: 0; }
         .slider {
             position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #334155;
-            transition: .3s;
+            background-color: var(--surface-hover);
+            transition: .2s;
             border-radius: 20px;
+            border: 1px solid var(--border-subtle);
         }
         .slider:before {
-            position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px;
-            background-color: white;
-            transition: .3s;
+            position: absolute; content: ""; height: 12px; width: 12px; left: 2px; bottom: 2px;
+            background-color: #94a3b8;
+            transition: .2s;
             border-radius: 50%;
         }
-        input:checked + .slider { background-color: #10b981; }
-        input:checked + .slider:before { transform: translateX(16px); }
+        input:checked + .slider {
+            background-color: var(--success);
+            border-color: var(--success);
+        }
+        input:checked + .slider:before {
+            transform: translateX(14px);
+            background-color: #ffffff;
+        }
 
         /* Storyboard Timeline Styles */
         .storyboard-timeline {
             position: relative;
-            margin: 20px 0 20px 20px;
-            padding-left: 28px;
-            border-left: 2px dashed rgba(99, 102, 241, 0.4);
+            margin: 18px 0 18px 18px;
+            padding-left: 24px;
+            border-left: 1px solid var(--border-strong);
         }
         .timeline-event-card {
             position: relative;
-            background: #0f172a;
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 16px;
-            margin-bottom: 16px;
-            transition: all 0.2s ease;
+            background: var(--surface-primary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 7px;
+            padding: 14px 16px;
+            margin-bottom: 14px;
+            transition: border-color 0.15s ease;
         }
         .timeline-event-card:hover {
-            border-color: var(--primary);
-            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.15);
+            border-color: var(--border-strong);
         }
         .timeline-node-marker {
             position: absolute;
-            left: -43px;
+            left: -35px;
             top: 14px;
-            width: 28px;
-            height: 28px;
+            width: 22px;
+            height: 22px;
             border-radius: 50%;
-            background: #1e293b;
+            background: var(--surface-secondary);
             border: 2px solid var(--primary);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 13px;
+            font-size: 10px;
             z-index: 2;
         }
-        .timeline-node-marker.node-create { border-color: #10b981; background: #064e3b; }
-        .timeline-node-marker.node-update { border-color: #38bdf8; background: #0c4a6e; }
-        .timeline-node-marker.node-delete { border-color: #f87171; background: #7f1d1d; }
-        .timeline-node-marker.node-error { border-color: #ef4444; background: #991b1b; }
-        .timeline-node-marker.node-step { border-color: #8b5cf6; background: #4c1d95; }
+        .timeline-node-marker.node-create { border-color: var(--success); color: var(--success-text); }
+        .timeline-node-marker.node-update { border-color: var(--info); color: var(--info-text); }
+        .timeline-node-marker.node-delete { border-color: var(--danger); color: var(--danger-text); }
+        .timeline-node-marker.node-error { border-color: var(--danger); color: var(--danger-text); }
+        .timeline-node-marker.node-step { border-color: var(--accent); color: #a5b4fc; }
 
         /* Modal Overlay */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.75);
+            background: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(4px);
             display: flex;
             align-items: center;
@@ -476,73 +590,56 @@
             padding: 20px;
         }
         .modal-body {
-            background: #0f172a;
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
+            background: var(--surface-primary);
+            border: 1px solid var(--border-strong);
+            border-radius: 8px;
             width: 100%;
             max-width: 900px;
             max-height: 90vh;
             overflow-y: auto;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
         }
         .modal-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border-color);
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border-subtle);
             display: flex;
             align-items: center;
             justify-content: space-between;
             position: sticky;
             top: 0;
-            background: #0f172a;
+            background: var(--surface-primary);
             z-index: 10;
         }
-        .modal-content { padding: 20px; }
-
-        /* Floating Tooltip */
-        .global-floating-tooltip {
-            position: fixed;
-            background: #0f172a;
-            color: #f8fafc;
-            border: 1px solid #475569;
-            border-radius: 8px;
-            padding: 8px 12px;
-            font-size: 12px;
-            line-height: 1.4;
-            max-width: 320px;
-            z-index: 99999;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
-            pointer-events: none;
-            display: none;
-        }
+        .modal-content { padding: 18px; }
 
         .guide-banner {
-            background: rgba(99, 102, 241, 0.08);
-            border: 1px solid rgba(99, 102, 241, 0.3);
-            border-radius: 8px;
-            padding: 12px 16px;
+            background: var(--primary-subtle);
+            border: 1px solid var(--primary-border);
+            border-radius: 6px;
+            padding: 12px 14px;
             margin-bottom: 16px;
             display: flex;
             gap: 12px;
             align-items: flex-start;
-            font-size: 13px;
+            font-size: 12.5px;
+            color: var(--text-secondary);
         }
-        .guide-icon { font-size: 20px; }
 
         .loading-overlay {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(15, 23, 42, 0.7);
+            background: rgba(11, 15, 23, 0.75);
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 10;
         }
         .spinner {
-            width: 36px; height: 36px;
-            border: 3px solid rgba(255, 255, 255, 0.1);
+            width: 28px; height: 28px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
             border-radius: 50%;
             border-top-color: var(--primary);
-            animation: spin 1s linear infinite;
+            animation: spin 0.8s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
@@ -559,8 +656,13 @@
             </span>
         </div>
         <div class="dash-controls">
-            <button class="btn-refresh" @click="refreshCurrentTab">
-                🔄 Aggiorna Dati
+            <button class="btn-action" @click="refreshCurrentTab">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+                Aggiorna Dati
             </button>
         </div>
     </header>
@@ -569,41 +671,106 @@
         <!-- Main Navigation Tabs -->
         <div class="main-nav">
             <button :class="['main-tab', { active: currentTab === 'logs' }]" @click="currentTab = 'logs'">
-                📊 Log Operazioni (@{{ pagination.total || logs.length }})
+                <span class="tab-icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                </span>
+                Log Operazioni (@{{ pagination.total || logs.length }})
             </button>
             <button :class="['main-tab', { active: currentTab === 'storyboard' }]" @click="currentTab = 'storyboard'; fetchStoryboard();">
-                📖 Storyboard Record & Audit Trail
+                <span class="tab-icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                    </svg>
+                </span>
+                Storyboard Record & Audit Trail
             </button>
             <button :class="['main-tab', { active: currentTab === 'studio_routes' }]" @click="currentTab = 'studio_routes'">
-                🗺️ Studio Rotte (Pagine & API)
+                <span class="tab-icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="2" y1="12" x2="22" y2="12"></line>
+                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                    </svg>
+                </span>
+                Studio Rotte
             </button>
             <button :class="['main-tab', { active: currentTab === 'studio_classes' }]" @click="currentTab = 'studio_classes'">
-                ⚙️ Studio Funzioni (Metodi PHP)
+                <span class="tab-icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="16 18 22 12 16 6"></polyline>
+                        <polyline points="8 6 2 12 8 18"></polyline>
+                    </svg>
+                </span>
+                Studio Funzioni (Metodi)
             </button>
             <button :class="['main-tab', { active: currentTab === 'studio_users' }]" @click="currentTab = 'studio_users'">
-                👤 Monitor Utente Live <span v-if="activeSessions.length" class="session-pulse"></span>
+                <span class="tab-icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                </span>
+                Monitor Utente Live <span v-if="activeSessions.length" class="session-pulse" style="margin-left: 4px;"></span>
             </button>
         </div>
 
         <!-- KPI Grid -->
         <div class="kpi-grid">
             <div class="kpi-card">
-                <div class="kpi-label">Richieste Totali</div>
+                <div class="kpi-top">
+                    <span class="kpi-label">Richieste Totali</span>
+                    <span class="kpi-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="20" x2="18" y2="10"></line>
+                            <line x1="12" y1="20" x2="12" y2="4"></line>
+                            <line x1="6" y1="20" x2="6" y2="14"></line>
+                        </svg>
+                    </span>
+                </div>
                 <div class="kpi-value">@{{ stats.total_requests || pagination.total || logs.length }}</div>
                 <div class="kpi-sub">Tracciate nel periodo</div>
             </div>
             <div class="kpi-card kpi-error">
-                <div class="kpi-label">Errori (4xx / 5xx)</div>
+                <div class="kpi-top">
+                    <span class="kpi-label">Errori (4xx / 5xx)</span>
+                    <span class="kpi-icon" style="color: var(--danger-text);">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                    </span>
+                </div>
                 <div class="kpi-value">@{{ stats.total_errors || 0 }}</div>
                 <div class="kpi-sub">@{{ stats.error_rate || 0 }}% tasso di errore</div>
             </div>
-            <div class="kpi-card kpi-time">
-                <div class="kpi-label">Latenza Media Server</div>
+            <div class="kpi-card">
+                <div class="kpi-top">
+                    <span class="kpi-label">Latenza Media Server</span>
+                    <span class="kpi-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                    </span>
+                </div>
                 <div class="kpi-value">@{{ stats.avg_duration_ms ? stats.avg_duration_ms + 'ms' : '—' }}</div>
-                <div class="kpi-sub">Tempo di risposta</div>
+                <div class="kpi-sub">Tempo di risposta calcolato</div>
             </div>
-            <div class="kpi-card kpi-tx">
-                <div class="kpi-label">Rollback / Anomalie DB</div>
+            <div class="kpi-card">
+                <div class="kpi-top">
+                    <span class="kpi-label">Rollback / Anomalie DB</span>
+                    <span class="kpi-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        </svg>
+                    </span>
+                </div>
                 <div class="kpi-value">@{{ stats.pending_transactions || 0 }}</div>
                 <div class="kpi-sub">Transazioni ripristinate</div>
             </div>
@@ -616,20 +783,30 @@
             <!-- Filter Toolbar -->
             <div class="filter-toolbar">
                 <div class="filter-pills-row" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                        <span class="filter-field-label">Filtri Rapidi:</span>
+                    <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                        <span class="filter-field-label" style="margin-right: 4px;">Filtri Rapidi:</span>
                         <button :class="['filter-pill', { active: quickFilter === 'all' }]" @click="setQuickFilter('all')">Tutti</button>
-                        <button :class="['filter-pill', 'pill-danger', { active: quickFilter === 'errors' }]" @click="setQuickFilter('errors')">🐛 Solo Errori</button>
-                        <button :class="['filter-pill', 'pill-warning', { active: quickFilter === 'tx' }]" @click="setQuickFilter('tx')">⚡ Rollback DB</button>
-                        <button :class="['filter-pill', { active: quickFilter === 'slow' }]" @click="setQuickFilter('slow')">⏱️ Richieste Lente (>1s)</button>
-                        <button :class="['filter-pill', { active: quickFilter === '500' }]" @click="setQuickFilter('500')">🔥 HTTP 500</button>
+                        <button :class="['filter-pill', 'pill-danger', { active: quickFilter === 'errors' }]" @click="setQuickFilter('errors')">Solo Errori</button>
+                        <button :class="['filter-pill', 'pill-warning', { active: quickFilter === 'tx' }]" @click="setQuickFilter('tx')">Rollback DB</button>
+                        <button :class="['filter-pill', { active: quickFilter === 'slow' }]" @click="setQuickFilter('slow')">Lenti (&gt;1s)</button>
+                        <button :class="['filter-pill', { active: quickFilter === '500' }]" @click="setQuickFilter('500')">HTTP 500</button>
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center;">
-                        <button class="filter-pill" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 600;" @click="exportData('csv')" title="Esporta i log filtrati in CSV (compatibile Excel)">
-                            📥 Esporta CSV
+                        <button class="btn-action" @click="exportData('csv')" title="Esporta i log filtrati in CSV">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            Esporta CSV
                         </button>
-                        <button class="filter-pill" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); font-weight: 600;" @click="exportData('json')" title="Esporta i log filtrati in JSON">
-                            📥 Esporta JSON
+                        <button class="btn-action" @click="exportData('json')" title="Esporta i log filtrati in JSON">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            Esporta JSON
                         </button>
                     </div>
                 </div>
@@ -662,7 +839,13 @@
                         <input type="date" class="filter-input-ctrl" v-model="filterDateTo" @change="onFilterChange">
                     </div>
                     <div>
-                        <button class="btn-reset-filters" @click="resetFilters">✕ Azzera Filtri</button>
+                        <button class="btn-reset-filters" @click="resetFilters">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                            Azzera Filtri
+                        </button>
                     </div>
                 </div>
             </div>
@@ -676,43 +859,43 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>Metodo</th>
-                            <th>Status</th>
+                            <th style="width: 80px;">Metodo</th>
+                            <th style="width: 70px;">Status</th>
                             <th>Utente</th>
                             <th>Rotta</th>
                             <th>Controller</th>
                             <th>IP</th>
                             <th>Durata</th>
                             <th>Data</th>
-                            <th>Flags / Storyboard</th>
+                            <th>Dettagli / Storyboard</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-for="log in logs" :key="log.id" style="cursor: pointer;" @click="openDetail(log)">
                             <td><span :class="['badge', getVerbClass(log.verbo)]">@{{ (log.verbo || '').toUpperCase() }}</span></td>
                             <td><span :class="getStatusClass(log.codicehttp)">@{{ log.codicehttp }}</span></td>
-                            <td><span style="font-weight: 600;">@{{ log.user_label }}</span></td>
-                            <td class="mono" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">@{{ log.rotta }}</td>
-                            <td style="color: var(--accent); font-size: 11px;">@{{ log.controllermethod || '—' }}</td>
-                            <td class="mono" style="font-size: 11px;">@{{ log.client_ip }}</td>
+                            <td><span style="font-weight: 500; color: var(--text-primary);">@{{ log.user_label }}</span></td>
+                            <td class="mono" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #93c5fd;">@{{ log.rotta }}</td>
+                            <td style="color: #a5b4fc; font-size: 11.5px;">@{{ log.controllermethod || '—' }}</td>
+                            <td class="mono" style="font-size: 11px; color: var(--text-muted);">@{{ log.client_ip }}</td>
                             <td class="mono" style="font-size: 11px;">@{{ log.duration_ms }}ms</td>
-                            <td style="color: var(--text-muted); font-size: 11px;">@{{ formatTimestamp(log.dataoperazione) }}</td>
+                            <td style="color: var(--text-subtle); font-size: 11px;">@{{ formatTimestamp(log.dataoperazione) }}</td>
                             <td>
-                                <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+                                <div style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
                                     <span v-if="log.subject_id"
                                           class="badge"
-                                          style="background: #8b5cf6; color: #fff; cursor: pointer;"
+                                          style="background: var(--accent-subtle); color: #c7d2fe; border: 1px solid rgba(99, 102, 241, 0.3); cursor: pointer;"
                                           @click.stop="openStoryboardForSubject(log.subject_type, log.subject_id)"
                                           title="Visualizza Storyboard di questo record">
-                                        📖 @{{ log.subject_label || ('#' + log.subject_id) }}
+                                        Audit @{{ log.subject_label || ('#' + log.subject_id) }}
                                     </span>
-                                    <span v-if="log.transaction_status" class="badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24;">⚡ DB</span>
-                                    <span v-if="log.error" class="badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">⚠️ ERR</span>
+                                    <span v-if="log.transaction_status" class="badge" style="background: var(--warning-subtle); color: var(--warning-text); border: 1px solid var(--warning-border);">TX</span>
+                                    <span v-if="log.error" class="badge" style="background: var(--danger-subtle); color: var(--danger-text); border: 1px solid var(--danger-border);">ERR</span>
                                 </div>
                             </td>
                         </tr>
                         <tr v-if="logs.length === 0 && !loading">
-                            <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 30px;">
+                            <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 36px;">
                                 Nessuna operazione registrata corrispondente ai filtri.
                             </td>
                         </tr>
@@ -722,21 +905,21 @@
 
             <!-- Pagination Bar -->
             <div class="pagination-bar">
-                <div style="font-size: 12px; color: var(--text-muted);">
-                    Mostrati da <strong>@{{ pagination.from || 0 }}</strong> a <strong>@{{ pagination.to || 0 }}</strong> di <strong>@{{ pagination.total || 0 }}</strong> log
+                <div style="font-size: 12px; color: var(--text-subtle);">
+                    Mostrati da <strong style="color: var(--text-secondary);">@{{ pagination.from || 0 }}</strong> a <strong style="color: var(--text-secondary);">@{{ pagination.to || 0 }}</strong> di <strong style="color: var(--text-secondary);">@{{ pagination.total || 0 }}</strong> log
                 </div>
                 <div style="display: flex; gap: 4px; align-items: center;">
                     <button class="page-btn" :disabled="currentPage <= 1" @click="goToPage(1)">«</button>
                     <button class="page-btn" :disabled="currentPage <= 1" @click="goToPage(currentPage - 1)">‹ Prec</button>
                     <template v-for="p in visiblePages" :key="p">
-                        <span v-if="p === '...'" style="padding: 0 4px; color: var(--text-muted);">...</span>
+                        <span v-if="p === '...'" style="padding: 0 4px; color: var(--text-subtle);">...</span>
                         <button v-else :class="['page-btn', { active: p === currentPage }]" @click="goToPage(p)">@{{ p }}</button>
                     </template>
                     <button class="page-btn" :disabled="currentPage >= pagination.last_page" @click="goToPage(currentPage + 1)">Succ ›</button>
                     <button class="page-btn" :disabled="currentPage >= pagination.last_page" @click="goToPage(pagination.last_page)">»</button>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <label style="font-size: 12px; color: var(--text-muted);">Per pagina:</label>
+                    <label style="font-size: 12px; color: var(--text-subtle);">Per pagina:</label>
                     <select class="filter-input-ctrl" style="width: 70px; padding: 4px 8px;" v-model="perPage" @change="onPerPageChange">
                         <option v-for="opt in perPageOptions" :key="opt" :value="opt">@{{ opt }}</option>
                     </select>
@@ -750,26 +933,36 @@
         <div v-if="currentTab === 'storyboard'" class="content-card">
             <div class="content-header">
                 <div>
-                    <div class="content-title">📖 Storyboard del Record (Audit Trail & Cronologia di Vita)</div>
+                    <div class="content-title">Storyboard del Record (Audit Trail & Cronologia di Vita)</div>
                     <span style="font-size: 12px; color: var(--text-muted);">Tracciamento cronologico completo di ogni modello Eloquent collegato come soggetto dell'operazione</span>
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">
-                    <button class="page-btn" @click="toggleStoryboardSort">
-                        @{{ storyboardSort === 'asc' ? '▲ Cronologico (Vecchi prima)' : '▼ Recenti prima' }}
+                    <button class="btn-action" @click="toggleStoryboardSort">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="7 11 12 6 17 11"></polyline>
+                            <polyline points="17 13 12 18 7 13"></polyline>
+                        </svg>
+                        @{{ storyboardSort === 'asc' ? 'Cronologico (Meno recenti prima)' : 'Recenti prima' }}
                     </button>
                 </div>
             </div>
 
             <div class="guide-banner">
-                <span class="guide-icon">💡</span>
+                <div style="margin-top: 1px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary);">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                </div>
                 <div>
-                    <strong>Cos'è la Storyboard:</strong>
-                    <p>Fornisce la storia completa di qualsiasi modello di business (Ordini, Fatture, Ticket, Contratti). Mostra chi l'ha creato, quali chiamate HTTP l'hanno modificato, quali checkpoint applicativi sono stati registrati con <code>$model->logStep()</code> e ogni eventuale errore.</p>
+                    <strong style="color: var(--text-primary);">Audit Trail Completo:</strong>
+                    <p>Fornisce la storia completa di qualsiasi entità aziendale (Ordini, Contratti, Ticket, Utenti). Mostra chi l'ha creata, quali chiamate l'hanno modificata, quali checkpoint applicativi sono stati registrati con <code>$model->logStep()</code> ed eventuali errori verificatisi.</p>
                 </div>
             </div>
 
             <!-- Subject Selector Toolbar -->
-            <div style="background: #0f172a; border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <div style="background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 14px; margin-bottom: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
                 <div style="flex: 1; min-width: 250px;">
                     <label class="filter-field-label" style="display: block; margin-bottom: 4px;">Soggetti Recenti Rilevati nei Log:</label>
                     <select v-model="selectedSubjectKey" class="filter-input-ctrl" @change="onSubjectSelectChange">
@@ -789,24 +982,24 @@
                         <label class="filter-field-label" style="display: block; margin-bottom: 4px;">ID Record:</label>
                         <input type="text" class="filter-input-ctrl" v-model="customSubjectId" placeholder="Es. 1" style="width: 90px;">
                     </div>
-                    <button class="btn-refresh" @click="fetchStoryboard" style="height: 38px;">
+                    <button class="btn-action btn-primary" @click="fetchStoryboard" style="height: 35px;">
                         Carica Storyboard
                     </button>
                 </div>
             </div>
 
             <!-- Storyboard Category Filter Pills -->
-            <div v-if="storyboardData && storyboardData.events" style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
+            <div v-if="storyboardData && storyboardData.events" style="display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap;">
                 <button :class="['filter-pill', { active: storyboardCategory === 'all' }]" @click="storyboardCategory = 'all'">Tutti (@{{ storyboardData.events.length }})</button>
-                <button :class="['filter-pill', { active: storyboardCategory === 'create' }]" @click="storyboardCategory = 'create'">✨ Creazione</button>
-                <button :class="['filter-pill', { active: storyboardCategory === 'update' }]" @click="storyboardCategory = 'update'">✏️ Modifiche</button>
-                <button :class="['filter-pill', { active: storyboardCategory === 'step' }]" @click="storyboardCategory = 'step'">🚩 Checkpoint</button>
-                <button :class="['filter-pill', 'pill-danger', { active: storyboardCategory === 'error' }]" @click="storyboardCategory = 'error'">💥 Errori</button>
+                <button :class="['filter-pill', { active: storyboardCategory === 'create' }]" @click="storyboardCategory = 'create'">Creazione</button>
+                <button :class="['filter-pill', { active: storyboardCategory === 'update' }]" @click="storyboardCategory = 'update'">Modifiche</button>
+                <button :class="['filter-pill', { active: storyboardCategory === 'step' }]" @click="storyboardCategory = 'step'">Checkpoint</button>
+                <button :class="['filter-pill', 'pill-danger', { active: storyboardCategory === 'error' }]" @click="storyboardCategory = 'error'">Errori</button>
             </div>
 
             <!-- Storyboard Loading -->
-            <div v-if="storyboardLoading" style="text-align: center; padding: 40px; color: var(--text-muted);">
-                <div class="spinner" style="margin: 0 auto 12px auto;"></div>
+            <div v-if="storyboardLoading" style="text-align: center; padding: 36px; color: var(--text-muted);">
+                <div class="spinner" style="margin: 0 auto 10px auto;"></div>
                 Caricamento linea del tempo in corso...
             </div>
 
@@ -814,45 +1007,45 @@
             <div v-else-if="filteredStoryboardEvents.length" class="storyboard-timeline">
                 <div v-for="(event, idx) in filteredStoryboardEvents" :key="event.id" class="timeline-event-card">
                     <div :class="['timeline-node-marker', 'node-' + (event.classification?.category || 'default')]">
-                        @{{ event.classification?.icon || '•' }}
+                        •
                     </div>
 
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
                         <div>
-                            <span class="badge" :style="{ background: event.classification?.badge_bg || '#1e293b', color: event.classification?.badge_color || '#fff', marginRight: '8px' }">
+                            <span class="badge" :style="{ background: event.classification?.badge_bg || '#1e2638', color: event.classification?.badge_color || '#fff', marginRight: '8px' }">
                                 @{{ event.classification?.label || 'EVENTO' }}
                             </span>
-                            <span class="mono" style="font-weight: 700; color: #fff; font-size: 14px;">@{{ event.route }}</span>
+                            <span class="mono" style="font-weight: 600; color: var(--text-primary); font-size: 13.5px;">@{{ event.route }}</span>
                         </div>
-                        <div style="font-size: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">
+                        <div style="font-size: 11.5px; color: var(--text-subtle); font-family: 'JetBrains Mono', monospace;">
                             @{{ event.time_human }} (@{{ event.time_iso }})
                         </div>
                     </div>
 
-                    <div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
-                        <div>👤 <strong>Autore:</strong> @{{ event.user?.name || event.user?.email || 'Visitatore Ospite' }}</div>
-                        <div>⏱️ <strong>Durata:</strong> @{{ event.duration_ms }}ms</div>
-                        <div>🌐 <strong>IP:</strong> @{{ event.ip_address }}</div>
-                        <div>🎯 <strong>Status:</strong> <span :class="getStatusClass(event.status_code)">@{{ event.status_code }}</span></div>
+                    <div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; flex-wrap: wrap;">
+                        <div><strong style="color: var(--text-secondary);">Autore:</strong> @{{ event.user?.name || event.user?.email || 'Ospite' }}</div>
+                        <div><strong style="color: var(--text-secondary);">Durata:</strong> @{{ event.duration_ms }}ms</div>
+                        <div><strong style="color: var(--text-secondary);">IP:</strong> @{{ event.ip_address }}</div>
+                        <div><strong style="color: var(--text-secondary);">Status:</strong> <span :class="getStatusClass(event.status_code)">@{{ event.status_code }}</span></div>
                     </div>
 
                     <!-- Steps ($model->logStep) -->
-                    <div v-if="event.custom_traces?.steps?.length" style="background: #1e293b; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; margin-top: 8px;">
-                        <div style="font-size: 12px; font-weight: 700; color: #38bdf8; margin-bottom: 6px;">🚩 Passaggi Applicativi Registrati:</div>
-                        <div v-for="(st, sI) in event.custom_traces.steps" :key="sI" style="font-size: 12px; color: #f8fafc; margin-bottom: 4px;">
+                    <div v-if="event.custom_traces?.steps?.length" style="background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px; margin-top: 8px;">
+                        <div style="font-size: 11.5px; font-weight: 600; color: #38bdf8; margin-bottom: 6px;">Passaggi Applicativi Registrati:</div>
+                        <div v-for="(st, sI) in event.custom_traces.steps" :key="sI" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">
                             • <strong>@{{ st.label }}</strong>
-                            <pre v-if="st.context && Object.keys(st.context).length" style="background: #090d16; padding: 6px; border-radius: 4px; font-size: 11px; margin-top: 4px; color: #94a3b8;">@{{ JSON.stringify(st.context, null, 2) }}</pre>
+                            <pre v-if="st.context && Object.keys(st.context).length" style="background: var(--surface-primary); padding: 6px; border-radius: 4px; font-size: 11px; margin-top: 4px; color: var(--text-muted); border: 1px solid var(--border-subtle);">@{{ JSON.stringify(st.context, null, 2) }}</pre>
                         </div>
                     </div>
 
                     <!-- Error Alert -->
-                    <div v-if="event.error" style="background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger); border-radius: 6px; padding: 8px; margin-top: 8px; color: #fca5a5; font-size: 12px;">
+                    <div v-if="event.error" style="background: var(--danger-subtle); border: 1px solid var(--danger-border); border-radius: 6px; padding: 8px; margin-top: 8px; color: var(--danger-text); font-size: 12px;">
                         <strong>Errore:</strong> @{{ event.error }}
                     </div>
                 </div>
             </div>
 
-            <div v-else-if="!storyboardLoading" style="text-align: center; padding: 40px; color: var(--text-muted);">
+            <div v-else-if="!storyboardLoading" style="text-align: center; padding: 36px; color: var(--text-muted);">
                 Nessun evento Storyboard trovato per il modello selezionato. Seleziona un modello in alto per visualizzare la cronologia.
             </div>
         </div>
@@ -863,47 +1056,49 @@
         <div v-if="currentTab === 'studio_routes'" class="content-card">
             <div class="content-header">
                 <div>
-                    <div class="content-title">🗺️ Studio Rotte (Controllo Pagine & API Senza Codice)</div>
-                    <span style="font-size: 12px; color: var(--text-muted);">Riconoscimento automatico delle rotte Laravel con attivazione permanente a 1 click</span>
+                    <div class="content-title">Studio Rotte (Controllo Pagine & API Senza Codice)</div>
+                    <span style="font-size: 12px; color: var(--text-muted);">Riconoscimento automatico delle rotte applicative con attivazione del tracciamento a 1 click</span>
                 </div>
                 <input v-model="routeFilter" type="text" class="filter-input-ctrl" placeholder="Filtra rotta o controller..." style="max-width: 250px;">
             </div>
 
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th style="width: 100px;">Stato</th>
-                        <th>Metodi</th>
-                        <th>URI Rotta</th>
-                        <th>Controller</th>
-                        <th>Livello Dettaglio</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr v-for="r in filteredRoutes" :key="r.uri">
-                        <td>
-                            <label class="toggle-switch">
-                                <input type="checkbox" :checked="r.is_tracked" @change="toggleRouteTracking(r)">
-                                <span class="slider"></span>
-                            </label>
-                        </td>
-                        <td>
-                            <span v-for="m in r.methods" :key="m" :class="['badge', 'badge-' + m.toLowerCase()]" style="margin-right: 4px;">
-                                @{{ m }}
-                            </span>
-                        </td>
-                        <td class="mono">/@{{ r.clean_uri }}</td>
-                        <td style="color: var(--accent);">@{{ r.controller }}@{{ r.controller_method ? '@' + r.controller_method : '' }}</td>
-                        <td>
-                            <select v-model="r.stack_level" class="filter-input-ctrl" style="padding: 4px 8px; width: auto;" @change="updateRouteLevel(r)">
-                                <option value="base">Base</option>
-                                <option value="core">🎯 Core</option>
-                                <option value="full">🔍 Completo</option>
-                            </select>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 80px;">Tracciamento</th>
+                            <th style="width: 130px;">Metodi</th>
+                            <th>URI Rotta</th>
+                            <th>Controller & Metodo</th>
+                            <th style="width: 150px;">Livello Dettaglio</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="r in filteredRoutes" :key="r.uri">
+                            <td>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" :checked="r.is_tracked" @change="toggleRouteTracking(r)">
+                                    <span class="slider"></span>
+                                </label>
+                            </td>
+                            <td>
+                                <span v-for="m in r.methods" :key="m" :class="['badge', 'badge-' + m.toLowerCase()]" style="margin-right: 4px;">
+                                    @{{ m }}
+                                </span>
+                            </td>
+                            <td class="mono" style="color: #93c5fd;">/@{{ r.clean_uri }}</td>
+                            <td style="color: #a5b4fc; font-size: 12px;">@{{ r.controller }}@{{ r.controller_method ? '@' + r.controller_method : '' }}</td>
+                            <td>
+                                <select v-model="r.stack_level" class="filter-input-ctrl" style="padding: 4px 8px; width: auto;" @change="updateRouteLevel(r)">
+                                    <option value="base">Base</option>
+                                    <option value="core">Core Stack</option>
+                                    <option value="full">Completo</option>
+                                </select>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <!-- ============================================================= -->
@@ -912,23 +1107,23 @@
         <div v-if="currentTab === 'studio_classes'" class="content-card">
             <div class="content-header">
                 <div>
-                    <div class="content-title">⚙️ Studio Funzioni (Dynamic Proxy & Interceptor Metodi)</div>
-                    <span style="font-size: 12px; color: var(--text-muted);">Intercetta l'esecuzione dei metodi di business logic senza toccare il codice applicativo</span>
+                    <div class="content-title">Studio Funzioni (Dynamic Proxy & Interceptor Metodi)</div>
+                    <span style="font-size: 12px; color: var(--text-muted);">Intercetta l'esecuzione dei metodi di business logic senza alterare il codice dell'applicazione</span>
                 </div>
             </div>
 
-            <div v-for="cls in classes" :key="cls.class" style="margin-bottom: 20px; background: #0f172a; border: 1px solid var(--border-color); border-radius: 8px; padding: 16px;">
-                <div style="font-weight: 700; color: #fff; font-size: 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
-                    <span>📦 @{{ cls.class }}</span>
-                    <span v-if="cls.has_traceable_attribute" class="badge" style="background: #8b5cf6; color: #fff;">#[Traceable]</span>
+            <div v-for="cls in classes" :key="cls.class" style="margin-bottom: 14px; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 14px;">
+                <div style="font-weight: 600; color: var(--text-primary); font-size: 13.5px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                    <span class="mono">@{{ cls.class }}</span>
+                    <span v-if="cls.has_traceable_attribute" class="badge" style="background: var(--accent-subtle); color: #c7d2fe; border: 1px solid rgba(99, 102, 241, 0.3);">#[Traceable]</span>
                 </div>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <div v-for="m in cls.methods" :key="m.name" style="background: #1e293b; border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 12px; display: flex; align-items: center; gap: 10px;">
+                    <div v-for="m in cls.methods" :key="m.name" style="background: var(--surface-primary); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px; display: flex; align-items: center; gap: 8px;">
                         <label class="toggle-switch">
                             <input type="checkbox" :checked="m.is_tracked" @change="toggleMethodTracking(cls.class, m)">
                             <span class="slider"></span>
                         </label>
-                        <span class="mono" style="font-size: 12px;">@{{ m.name }}()</span>
+                        <span class="mono" style="font-size: 12px; color: var(--text-secondary);">@{{ m.name }}()</span>
                     </div>
                 </div>
             </div>
@@ -940,13 +1135,13 @@
         <div v-if="currentTab === 'studio_users'" class="content-card">
             <div class="content-header">
                 <div>
-                    <div class="content-title">👤 Monitor Utente Live a Tempo</div>
-                    <span style="font-size: 12px; color: var(--text-muted);">Traccia tutte le azioni di un utente specifico per una finestra temporale temporanea</span>
+                    <div class="content-title">Monitor Utente Live a Tempo</div>
+                    <span style="font-size: 12px; color: var(--text-muted);">Traccia in tempo reale tutte le attività di un utente specifico per una finestra temporale controllata</span>
                 </div>
             </div>
 
             <!-- Avvio Sessione Form -->
-            <div style="background: #0f172a; border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 20px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+            <div style="background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 14px; margin-bottom: 16px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
                 <div>
                     <label class="filter-field-label" style="display: block; margin-bottom: 4px;">Seleziona Utente:</label>
                     <select v-model="targetUserId" class="filter-input-ctrl" style="width: 250px;">
@@ -965,28 +1160,28 @@
                         <option :value="60">60 Minuti</option>
                     </select>
                 </div>
-                <button class="btn-refresh" @click="startLiveSession" :disabled="!targetUserId">
+                <button class="btn-action btn-primary" @click="startLiveSession" :disabled="!targetUserId" style="height: 35px;">
                     Avvia Monitoraggio
                 </button>
             </div>
 
             <!-- Sessioni Attive -->
             <div v-if="activeSessions.length">
-                <div style="font-weight: 700; color: #fff; margin-bottom: 10px;">Sessioni Live Attive:</div>
-                <div v-for="s in activeSessions" :key="s.id" style="background: #0f172a; border: 1px solid #10b981; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
+                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 8px; font-size: 13px;">Sessioni Live Attive:</div>
+                <div v-for="s in activeSessions" :key="s.id" style="background: var(--bg-base); border: 1px solid var(--success-border); border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; align-items: center;">
                         <span class="session-pulse"></span>
-                        <strong style="color: #fff; margin-left: 8px;">Utente ID: @{{ s.target }}</strong>
+                        <strong style="color: var(--text-primary); margin-left: 8px; font-size: 13px;">Utente ID: @{{ s.target }}</strong>
                         <span style="color: var(--text-muted); font-size: 12px; margin-left: 8px;">
                             (Tempo residuo: @{{ s.seconds_left ? formatSeconds(s.seconds_left) : 'In corso' }})
                         </span>
                     </div>
-                    <button class="page-btn" style="border-color: #ef4444; color: #f87171;" @click="stopLiveSession(s.id)">
+                    <button class="page-btn" style="border-color: var(--danger-border); color: var(--danger-text);" @click="stopLiveSession(s.id)">
                         Arresta
                     </button>
                 </div>
             </div>
-            <div v-else style="color: var(--text-muted); font-size: 13px;">
+            <div v-else style="color: var(--text-muted); font-size: 12.5px;">
                 Nessuna sessione di monitoraggio utente attiva al momento.
             </div>
         </div>
@@ -996,16 +1191,16 @@
     <div v-if="activeLog" class="modal-overlay" @click.self="closeDetail">
         <div class="modal-body">
             <div class="modal-header">
-                <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
                     <span :class="['badge', getVerbClass(activeLog.verbo)]">@{{ (activeLog.verbo || '').toUpperCase() }}</span>
                     <span :class="['badge', getStatusClass(activeLog.codicehttp)]">@{{ activeLog.codicehttp }}</span>
-                    <span class="mono" style="font-weight: 700; font-size: 14px;">@{{ activeLog.rotta }}</span>
+                    <span class="mono" style="font-weight: 600; font-size: 13.5px; color: var(--text-primary);">@{{ activeLog.rotta }}</span>
                 </div>
-                <button style="background: none; border: none; color: #fff; font-size: 20px; cursor: pointer;" @click="closeDetail">✕</button>
+                <button style="background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer;" @click="closeDetail">✕</button>
             </div>
 
             <div class="modal-content">
-                <div style="display: flex; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                <div style="display: flex; gap: 8px; margin-bottom: 14px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px;">
                     <button :class="['page-btn', { active: modalTab === 'overview' }]" @click="modalTab = 'overview'">Riepilogo & Dati</button>
                     <button :class="['page-btn', { active: modalTab === 'stack' }]" @click="modalTab = 'stack'">
                         Stack Trace (@{{ modalStackView === 'core' ? (activeLog.core_stack ? activeLog.core_stack.length : 0) : (activeLog.stack_trace ? activeLog.stack_trace.length : 0) }})
@@ -1014,55 +1209,55 @@
 
                 <!-- Overview -->
                 <div v-if="modalTab === 'overview'">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
-                        <div><strong>Utente:</strong> @{{ activeLog.user_label }}</div>
-                        <div><strong>IP:</strong> @{{ activeLog.client_ip }}</div>
-                        <div><strong>Durata:</strong> @{{ activeLog.duration_ms }} ms</div>
-                        <div><strong>Data:</strong> @{{ formatTimestamp(activeLog.dataoperazione) }}</div>
-                        <div><strong>Controller:</strong> @{{ activeLog.controllermethod || 'N/A' }}</div>
-                        <div><strong>Transazione:</strong> @{{ activeLog.transaction_status || 'Nessuna anomalia' }}</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; font-size: 13px;">
+                        <div><span style="color: var(--text-subtle);">Utente:</span> <strong style="color: var(--text-primary);">@{{ activeLog.user_label }}</strong></div>
+                        <div><span style="color: var(--text-subtle);">IP:</span> <span class="mono">@{{ activeLog.client_ip }}</span></div>
+                        <div><span style="color: var(--text-subtle);">Durata:</span> <span class="mono">@{{ activeLog.duration_ms }} ms</span></div>
+                        <div><span style="color: var(--text-subtle);">Data:</span> @{{ formatTimestamp(activeLog.dataoperazione) }}</div>
+                        <div><span style="color: var(--text-subtle);">Controller:</span> <span style="color: #a5b4fc;">@{{ activeLog.controllermethod || 'N/A' }}</span></div>
+                        <div><span style="color: var(--text-subtle);">Transazione:</span> @{{ activeLog.transaction_status || 'Nessuna anomalia' }}</div>
                     </div>
 
-                    <div v-if="activeLog.subject_id" style="background: rgba(139, 92, 246, 0.1); border: 1px solid var(--accent); border-radius: 8px; padding: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                    <div v-if="activeLog.subject_id" style="background: var(--accent-subtle); border: 1px solid var(--accent); border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;">
                         <div>
-                            <strong>Soggetto Storyboard:</strong> @{{ activeLog.subject_label || (activeLog.subject_type + ' #' + activeLog.subject_id) }}
+                            <strong style="color: var(--text-primary);">Soggetto Storyboard:</strong> @{{ activeLog.subject_label || (activeLog.subject_type + ' #' + activeLog.subject_id) }}
                         </div>
-                        <button class="btn-refresh" style="background: var(--accent);" @click="openStoryboardForSubject(activeLog.subject_type, activeLog.subject_id)">
-                            📖 Apri Storyboard
+                        <button class="btn-action" style="background: var(--accent); color: #ffffff;" @click="openStoryboardForSubject(activeLog.subject_type, activeLog.subject_id)">
+                            Apri Storyboard
                         </button>
                     </div>
 
-                    <div v-if="activeLog.error" style="background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger); border-radius: 8px; padding: 12px; margin-bottom: 16px; color: #fca5a5;">
+                    <div v-if="activeLog.error" style="background: var(--danger-subtle); border: 1px solid var(--danger-border); border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; color: var(--danger-text);">
                         <strong>Errore:</strong>
                         <pre style="margin-top: 6px; font-family: 'JetBrains Mono', monospace; font-size: 12px; white-space: pre-wrap;">@{{ activeLog.error }}</pre>
                     </div>
 
                     <div>
-                        <strong>Parametri Richiesta:</strong>
-                        <pre style="background: #090d16; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-top: 6px; font-family: 'JetBrains Mono', monospace; font-size: 12px; max-height: 220px; overflow: auto;">@{{ JSON.stringify(activeLog.parametri, null, 2) }}</pre>
+                        <strong style="font-size: 12.5px; color: var(--text-secondary);">Parametri Richiesta:</strong>
+                        <pre style="background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px; margin-top: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; max-height: 220px; overflow: auto; color: var(--text-muted);">@{{ JSON.stringify(activeLog.parametri, null, 2) }}</pre>
                     </div>
                 </div>
 
                 <!-- Stack Trace -->
                 <div v-if="modalTab === 'stack'">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <span style="font-size: 12px; color: var(--text-muted);">Visualizzazione:</span>
+                        <span style="font-size: 12px; color: var(--text-subtle);">Visualizzazione:</span>
                         <div style="display: flex; gap: 6px;">
                             <button :class="['page-btn', { active: modalStackView === 'core' }]" @click="modalStackView = 'core'">Solo Codice Core</button>
                             <button :class="['page-btn', { active: modalStackView === 'full' }]" @click="modalStackView = 'full'">Stack Completo</button>
                         </div>
                     </div>
 
-                    <div style="max-height: 400px; overflow-y: auto;">
-                        <div v-for="(frame, fIdx) in displayedStackFrames" :key="fIdx" style="padding: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); font-size: 12px;">
-                            <span style="color: var(--text-muted);">#@{{ fIdx + 1 }}</span>
-                            <span style="color: #fff; font-weight: 600; margin: 0 6px;">@{{ frame.class ? frame.class + '::' + frame.function : frame.function }}</span>
-                            <span v-if="frame.is_core" class="badge" style="background: rgba(99, 102, 241, 0.2); color: #818cf8;">CORE</span>
-                            <div style="color: var(--text-muted); font-size: 11px; margin-top: 2px;">
+                    <div style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border-subtle); border-radius: 6px;">
+                        <div v-for="(frame, fIdx) in displayedStackFrames" :key="fIdx" style="padding: 8px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.035); font-size: 12px;">
+                            <span style="color: var(--text-subtle); font-family: 'JetBrains Mono', monospace;">#@{{ fIdx + 1 }}</span>
+                            <span style="color: var(--text-primary); font-weight: 500; margin: 0 6px;">@{{ frame.class ? frame.class + '::' + frame.function : frame.function }}</span>
+                            <span v-if="frame.is_core" class="badge" style="background: var(--primary-subtle); color: #93c5fd; border: 1px solid var(--primary-border);">CORE</span>
+                            <div style="color: var(--text-subtle); font-size: 11px; margin-top: 2px; font-family: 'JetBrains Mono', monospace;">
                                 @{{ frame.file }}:@{{ frame.line }}
                             </div>
                         </div>
-                        <div v-if="displayedStackFrames.length === 0" style="color: var(--text-muted); padding: 10px;">
+                        <div v-if="displayedStackFrames.length === 0" style="color: var(--text-muted); padding: 12px; text-align: center;">
                             Nessun frame disponibile per questa visualizzazione.
                         </div>
                     </div>
