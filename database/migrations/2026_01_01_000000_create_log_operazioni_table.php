@@ -51,7 +51,7 @@ return new class extends Migration
             $table->string('verbo', 10)->index();
 
             // Controller@metodo associato alla rotta
-            $table->string('controllermethod', 255)->nullable();
+            $table->string('controllermethod', 500)->nullable();
 
             // Codice di stato HTTP della risposta
             $table->integer('codicehttp')->index();

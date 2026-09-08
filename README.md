@@ -133,7 +133,7 @@ return [
     'queue' => [
         'enabled' => env('LOG_OPERATIONS_QUEUE_ENABLED', false),
         'connection' => env('LOG_OPERATIONS_QUEUE_CONNECTION', null),
-        'queue' => env('LOG_OPERATIONS_QUEUE_NAME', 'log-operations'),
+        'queue' => env('LOG_OPERATIONS_QUEUE_NAME', 'default'), // 'default' o coda dedicata es. 'log-operations'
         'tries' => 3,
         'backoff' => [5, 10, 30],
         'failed_jobs_threshold' => 5,
@@ -590,13 +590,22 @@ Il pacchetto è progettato per ambienti di produzione ad alto traffico:
    'queue' => [
        'enabled' => env('LOG_OPERATIONS_QUEUE_ENABLED', false),
        'connection' => env('LOG_OPERATIONS_QUEUE_CONNECTION', null),
-       'queue' => env('LOG_OPERATIONS_QUEUE_NAME', 'log-operations'),
+       'queue' => env('LOG_OPERATIONS_QUEUE_NAME', 'default'), // Coda 'default' o dedicata (es. 'log-operations')
        'tries' => 3,
        'backoff' => [10, 30, 60],
        'alert_email' => env('LOG_OPERATIONS_ALERT_EMAIL', null),
        'failed_jobs_threshold' => 5,
    ],
    ```
+   > [!TIP]
+   > **Gestione del Queue Worker:**
+   > - **Coda `default` (Predefinita)**: Funziona immediatamente con il worker standard di Laravel (`php artisan queue:work`).
+   > - **Coda Dedicata (Consigliata per Alto Traffico)**: Se imposti `LOG_OPERATIONS_QUEUE_NAME=log-operations` per isolare il logging e non saturare la coda principale dell'app, ricorda di avviare il worker specificando entrambe le code:
+   >   ```bash
+   >   php artisan queue:work --queue=log-operations,default
+   >   ```
+   >   oppure aggiungi `log-operations` al tuo processo `Supervisor` o al file `config/horizon.php`.
+
    - In caso di broker di coda offline, il pacchetto esegue un **fallback automatico** su scrittura diretta o file di emergenza (`storage/logs/logoperations-emergency.log`).
    - Allerta email automatica con rate-limiting se il numero di job falliti supera la soglia.
 

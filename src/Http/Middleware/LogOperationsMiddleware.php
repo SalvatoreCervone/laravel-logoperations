@@ -34,6 +34,7 @@ class LogOperationsMiddleware
     protected LogOperationsManager $manager;
     protected RuleEngine $ruleEngine;
     protected PrivacyManager $privacyManager;
+    protected static bool $dbListenerRegistered = false;
 
     public function __construct(
         StackTracer $stackTracer,
@@ -204,7 +205,7 @@ class LogOperationsMiddleware
                 'subject_type' => $subjectType,
                 'rotta' => Str::limit($this->privacyManager->sanitizeUri($request->getRequestUri()), 1024, ''),
                 'verbo' => $verbo,
-                'controllermethod' => $controllerMethod,
+                'controllermethod' => $controllerMethod ? Str::limit($controllerMethod, 500, '') : null,
                 'codicehttp' => $statusCode,
                 'client_ip' => $clientIp,
                 'dataoperazione' => now(),
@@ -212,20 +213,20 @@ class LogOperationsMiddleware
                 'error' => $errorMessage,
                 'stack_trace' => $stackTrace,
                 'custom_traces' => $customTraces,
-                'nomeapplicazione' => config('logoperations.app_name', 'laravel'),
+                'nomeapplicazione' => Str::limit((string) config('logoperations.app_name', 'laravel'), 100, ''),
                 'duration_ms' => $durationMs,
                 'transaction_status' => $transactionInfo['action'],
                 'transaction_level' => $transactionInfo['level'],
             ];
-
-            // Memorizza i dati per la persistenza post-risposta (Terminable Middleware)
-            $request->attributes->set('_logoperations_pending', $logData);
 
             // Se la scrittura post-risposta è disabilitata esplicitamente, persiste subito in handle
             if (!config('logoperations.write_after_response', true)) {
                 $this->persistLog($logData, $request);
                 $this->manager->flush();
                 $this->stackTracer->flushDbCallers();
+            } else {
+                // Memorizza i dati per la persistenza post-risposta (Terminable Middleware)
+                $request->attributes->set('_logoperations_pending', $logData);
             }
 
         } catch (\Throwable $e) {
@@ -550,18 +551,28 @@ class LogOperationsMiddleware
     /**
      * Registra un listener su DB::listen() per identificare quale funzione
      * del codice applicativo ha originato ciascuna query.
+     * Protetto con guardia statica per registrarsi una sola volta per processo (Octane/persistent safe).
      */
     protected function registerDbListener(): void
     {
+        if (static::$dbListenerRegistered) {
+            return;
+        }
+
         DB::listen(function ($query) {
-            $caller = $this->stackTracer->findProjectCaller();
-            if ($caller) {
-                $this->stackTracer->recordDbCaller([
-                    'sql' => Str::limit($query->sql, 500, '...'),
-                    'time_ms' => $query->time,
-                    'caller' => $caller,
-                ]);
+            $tracer = app(StackTracer::class);
+            if ($tracer->isEnabled() && config('logoperations.stack_trace.trace_db_callers', true)) {
+                $caller = $tracer->findProjectCaller();
+                if ($caller) {
+                    $tracer->recordDbCaller([
+                        'sql' => Str::limit($query->sql, 500, '...'),
+                        'time_ms' => $query->time,
+                        'caller' => $caller,
+                    ]);
+                }
             }
         });
+
+        static::$dbListenerRegistered = true;
     }
 }
