@@ -4,6 +4,7 @@ namespace SalvatoreCervone\LogOperations\Console\Commands;
 
 use Illuminate\Console\Command;
 use SalvatoreCervone\LogOperations\Models\OperationRule;
+use SalvatoreCervone\LogOperations\Services\RuleEngine;
 
 class ClearExpiredRulesCommand extends Command
 {
@@ -25,7 +26,7 @@ class ClearExpiredRulesCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(): int
+    public function handle(RuleEngine $ruleEngine): int
     {
         $this->info('🔍 Ricerca regole e sessioni temporanee scadute...');
 
@@ -46,6 +47,7 @@ class ClearExpiredRulesCommand extends Command
         }
 
         $deleted = $query->delete();
+        $ruleEngine->flushCache();
 
         $this->info("🧹 Rimosse {$deleted} regole temporanee scadute con successo.");
         $this->line('ℹ️  Nota: I dati storici e le Storyboard in log_operazioni rimangono preservati al 100%.');

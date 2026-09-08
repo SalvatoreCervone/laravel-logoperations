@@ -135,4 +135,31 @@ class ForgetUserTest extends TestCase
         $this->assertEquals(0, OperationLog::where('user_id', '88')->count());
         $this->assertEquals(1, OperationLog::count());
     }
+
+    public function test_forget_user_anonymizes_multiple_records_chunked(): void
+    {
+        for ($i = 0; $i < 15; $i++) {
+            OperationLog::create([
+                'user_id' => '123',
+                'user_type' => 'App\Models\User',
+                'rotta' => '/chunk-test/' . $i,
+                'verbo' => 'get',
+                'codicehttp' => 200,
+                'client_ip' => '192.168.1.1',
+                'dataoperazione' => now(),
+                'parametri' => ['email' => 'user123@example.com', 'action' => 'browse'],
+            ]);
+        }
+
+        $affected = LogOperations::forgetUser(123, null, true);
+
+        $this->assertEquals(15, $affected);
+        $this->assertEquals(0, OperationLog::where('user_id', '123')->count());
+        $this->assertEquals(15, OperationLog::whereNull('user_id')->count());
+
+        $first = OperationLog::first();
+        $this->assertEquals('192.168.1.0', $first->client_ip);
+        $this->assertEquals('[ANONYMIZED_GDPR]', $first->parametri['email']);
+        $this->assertEquals('browse', $first->parametri['action']);
+    }
 }

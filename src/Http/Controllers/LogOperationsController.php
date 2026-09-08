@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use SalvatoreCervone\LogOperations\Models\OperationLog;
 use SalvatoreCervone\LogOperations\Services\LogExportService;
 use SalvatoreCervone\LogOperations\Http\Controllers\Concerns\AuthorizesLogOperations;
@@ -113,6 +114,24 @@ class LogOperationsController extends Controller
         $requestedPerPage = (int) $request->input('per_page', $defaultPerPage);
         $perPage = max(1, min($requestedPerPage, 100));
         $logs = $query->paginate($perPage)->withQueryString();
+
+        // Eager loading polimorfico per prevenire query N+1 nella trasformazione
+        try {
+            $userTypes = $logs->getCollection()->pluck('user_type')->filter()->unique()->all();
+            $hasValidTypes = false;
+            foreach ($userTypes as $type) {
+                $class = Relation::getMorphedModel($type) ?? $type;
+                if (class_exists($class)) {
+                    $hasValidTypes = true;
+                    break;
+                }
+            }
+            if ($hasValidTypes) {
+                $logs->getCollection()->load('user');
+            }
+        } catch (\Throwable $e) {
+            // Fallback trasparente al lazy loading se il caricamento massivo riscontra anomalie
+        }
 
         // Arricchisci i risultati con i dati dell'utente polimorfico
         $logs->getCollection()->transform(function ($log) {
@@ -704,11 +723,12 @@ class LogOperationsController extends Controller
         $query->where(function ($subQuery) use ($like, $searchFields, $userModels) {
             foreach ($userModels as $userType) {
                 try {
-                    if (!class_exists($userType)) {
+                    $actualClass = Relation::getMorphedModel($userType) ?? $userType;
+                    if (!class_exists($actualClass)) {
                         continue;
                     }
 
-                    $modelInstance = new $userType;
+                    $modelInstance = new $actualClass;
                     $userTable = $modelInstance->getTable();
 
                     // Verifica quali colonne esistono realmente nella tabella
@@ -723,15 +743,16 @@ class LogOperationsController extends Controller
                         continue;
                     }
 
-                    $subQuery->orWhereIn('user_id', function ($inQuery) use (
-                        $userTable, $userType, $existingFields, $like
-                    ) {
-                        $inQuery->select('id')
-                            ->from($userTable)
-                            ->where(function ($q) use ($existingFields, $like) {
-                                foreach ($existingFields as $field) {
-                                    $q->orWhere($field, 'like', $like);
-                                }
+                    $subQuery->orWhere(function ($typeQuery) use ($userType, $userTable, $existingFields, $like) {
+                        $typeQuery->where('user_type', $userType)
+                            ->whereIn('user_id', function ($inQuery) use ($userTable, $existingFields, $like) {
+                                $inQuery->select('id')
+                                    ->from($userTable)
+                                    ->where(function ($q) use ($existingFields, $like) {
+                                        foreach ($existingFields as $field) {
+                                            $q->orWhere($field, 'like', $like);
+                                        }
+                                    });
                             });
                     });
                 } catch (\Throwable $e) {

@@ -156,23 +156,23 @@ class PrivacyManager
             return $query->delete();
         }
 
-        // Modalità anonimizzazione: conservazione metadati tecnici ma rimozione dati personali
+        // Modalità anonimizzazione: conservazione metadati tecnici ma rimozione dati personali (in blocchi da 500 per O(1) RAM)
         $affected = 0;
-        $logs = $query->get();
+        $query->chunkById(500, function ($logs) use (&$affected) {
+            foreach ($logs as $log) {
+                $cleanIp = $this->anonymizeIp($log->client_ip, '0');
+                $cleanParams = $this->scrubPersonalDataFromParams($log->parametri);
 
-        foreach ($logs as $log) {
-            $cleanIp = $this->anonymizeIp($log->client_ip, '0');
-            $cleanParams = $this->scrubPersonalDataFromParams($log->parametri);
+                $log->update([
+                    'user_id'   => null,
+                    'user_type' => null,
+                    'client_ip' => $cleanIp,
+                    'parametri' => $cleanParams,
+                ]);
 
-            $log->update([
-                'user_id'   => null,
-                'user_type' => null,
-                'client_ip' => $cleanIp,
-                'parametri' => $cleanParams,
-            ]);
-
-            $affected++;
-        }
+                $affected++;
+            }
+        });
 
         return $affected;
     }

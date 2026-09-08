@@ -164,7 +164,9 @@ class TrackingRulesController extends Controller
 
             if (!empty($q)) {
                 $query->where(function ($sub) use ($q) {
-                    $sub->where('id', $q);
+                    if (is_numeric($q)) {
+                        $sub->where('id', $q);
+                    }
                     if (Schema::hasColumn($sub->getModel()->getTable(), 'name')) {
                         $sub->orWhere('name', 'like', "%{$q}%");
                     }
@@ -175,9 +177,10 @@ class TrackingRulesController extends Controller
             }
 
             $users = $query->limit(15)->get()->map(function ($u) {
+                $id = method_exists($u, 'getAuthIdentifier') ? $u->getAuthIdentifier() : $u->getKey();
                 return [
-                    'id'    => (string) $u->getAuthIdentifier(),
-                    'name'  => $u->name ?? $u->email ?? ('Utente #' . $u->getAuthIdentifier()),
+                    'id'    => (string) $id,
+                    'name'  => $u->name ?? $u->email ?? ('Utente #' . $id),
                     'email' => $u->email ?? null,
                 ];
             });
