@@ -642,11 +642,72 @@
             border-top-color: var(--primary);
             animation: spin 0.8s linear infinite;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        /* Toast Notification */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+        .toast-notification {
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 18px;
+            border-radius: 8px;
+            font-size: 13.5px;
+            font-weight: 500;
+            color: #ffffff;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(8px);
+            max-width: 450px;
+            word-break: break-word;
+        }
+        .toast-success {
+            background: rgba(16, 185, 129, 0.95);
+            border-color: rgba(52, 211, 153, 0.4);
+        }
+        .toast-error {
+            background: rgba(239, 68, 68, 0.95);
+            border-color: rgba(248, 113, 113, 0.4);
+        }
+        .toast-info {
+            background: rgba(59, 130, 246, 0.95);
+            border-color: rgba(96, 165, 250, 0.4);
+        }
+        .toast-fade-enter-active, .toast-fade-leave-active {
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .toast-fade-enter-from {
+            opacity: 0;
+            transform: translateY(16px) scale(0.95);
+        }
+        .toast-fade-leave-to {
+            opacity: 0;
+            transform: translateY(-10px) scale(0.95);
+        }
     </style>
 </head>
 <body>
 <div id="app">
+    <!-- Toast Notification -->
+    <div class="toast-container">
+        <transition name="toast-fade">
+            <div v-if="toast.show" :class="['toast-notification', 'toast-' + toast.type]">
+                <span v-if="toast.type === 'success'" style="font-size: 16px; font-weight: bold;">✓</span>
+                <span v-else-if="toast.type === 'error'" style="font-size: 16px; font-weight: bold;">✕</span>
+                <span v-else style="font-size: 16px; font-weight: bold;">ℹ</span>
+                <span>@{{ toast.message }}</span>
+            </div>
+        </transition>
+    </div>
+
     <!-- Header -->
     <header class="dash-header">
         <div class="dash-brand">
@@ -1440,6 +1501,28 @@
             const targetUserId = ref('');
             const userDuration = ref(15);
 
+            // Toast Notification State
+            const toast = ref({
+                show: false,
+                message: '',
+                type: 'success',
+                timer: null,
+            });
+
+            function showToast(message, type = 'success', duration = 3500) {
+                if (toast.value.timer) {
+                    clearTimeout(toast.value.timer);
+                }
+                toast.value = {
+                    show: true,
+                    message,
+                    type,
+                    timer: setTimeout(() => {
+                        toast.value.show = false;
+                    }, duration)
+                };
+            }
+
             // Storyboard State
             const subjectsList = ref([]);
             const selectedSubjectKey = ref('');
@@ -1815,7 +1898,7 @@
                 });
 
                 try {
-                    await apiFetch(`/${apiPrefix}/studio/rules/bulk`, {
+                    const res = await apiFetch(`/${apiPrefix}/studio/rules/bulk`, {
                         method: 'POST',
                         body: JSON.stringify({
                             _token: csrfToken,
@@ -1824,8 +1907,19 @@
                             is_active: isActive
                         })
                     });
+                    if (res.ok) {
+                        showToast(
+                            isActive
+                                ? `Tracciamento attivato per ${selectedRoutes.length} rotte.`
+                                : `Tracciamento disattivato per ${selectedRoutes.length} rotte.`,
+                            'success'
+                        );
+                    } else {
+                        showToast('Errore durante l\'azione massiva.', 'error');
+                    }
                 } catch (e) {
                     console.error('Error in bulkSetTracking:', e);
+                    showToast('Errore di connessione.', 'error');
                 }
             }
 
@@ -1846,7 +1940,7 @@
                 });
 
                 try {
-                    await apiFetch(`/${apiPrefix}/studio/rules/bulk`, {
+                    const res = await apiFetch(`/${apiPrefix}/studio/rules/bulk`, {
                         method: 'POST',
                         body: JSON.stringify({
                             _token: csrfToken,
@@ -1856,8 +1950,14 @@
                             is_active: true
                         })
                     });
+                    if (res.ok) {
+                        showToast(`Livello "${level}" applicato a ${selectedRoutes.length} rotte.`, 'success');
+                    } else {
+                        showToast('Errore durante l\'azione massiva.', 'error');
+                    }
                 } catch (e) {
                     console.error('Error in bulkSetStackLevel:', e);
+                    showToast('Errore di connessione.', 'error');
                 }
             }
 
@@ -1890,6 +1990,7 @@
             async function toggleRouteTracking(route) {
                 const newState = !route.is_tracked;
                 route.is_tracked = newState;
+                const routeLabel = (route.methods ? route.methods.join('/') : '') + ' /' + (route.clean_uri || route.uri || '');
                 try {
                     const res = await apiFetch(`/${apiPrefix}/studio/rules`, {
                         method: 'POST',
@@ -1909,13 +2010,23 @@
                         if (data && data.data && data.data.id) {
                             route.rule_id = data.data.id;
                         }
+                        showToast(
+                            newState ? `Tracciamento attivato: ${routeLabel}` : `Tracciamento disattivato: ${routeLabel}`,
+                            'success'
+                        );
+                    } else {
+                        route.is_tracked = !newState;
+                        showToast('Errore durante il salvataggio della regola', 'error');
                     }
                 } catch (e) {
+                    route.is_tracked = !newState;
                     console.error('Error toggling route tracking:', e);
+                    showToast('Errore di connessione', 'error');
                 }
             }
 
             async function updateRouteLevel(route) {
+                const routeLabel = (route.methods ? route.methods.join('/') : '') + ' /' + (route.clean_uri || route.uri || '');
                 try {
                     const res = await apiFetch(`/${apiPrefix}/studio/rules`, {
                         method: 'POST',
@@ -1935,9 +2046,13 @@
                         if (data && data.data && data.data.id) {
                             route.rule_id = data.data.id;
                         }
+                        showToast(`Livello impostato su "${route.stack_level}" per ${routeLabel}`, 'success');
+                    } else {
+                        showToast('Errore durante l\'aggiornamento del livello', 'error');
                     }
                 } catch (e) {
                     console.error('Error updating route level:', e);
+                    showToast('Errore di connessione', 'error');
                 }
             }
 
@@ -1946,35 +2061,62 @@
                 if (!targetClass) return;
                 const newState = !method.is_tracked;
                 method.is_tracked = newState;
-                await apiFetch(`/${apiPrefix}/studio/rules`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        _token: csrfToken,
-                        type: 'method',
-                        target: targetClass + '@' + method.name,
-                        is_active: newState
-                    })
-                });
+                try {
+                    const res = await apiFetch(`/${apiPrefix}/studio/rules`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            _token: csrfToken,
+                            type: 'method',
+                            target: targetClass + '@' + method.name,
+                            is_active: newState
+                        })
+                    });
+                    if (res.ok) {
+                        showToast(
+                            newState
+                                ? `Tracciamento metodo attivato: ${method.name}`
+                                : `Tracciamento metodo disattivato: ${method.name}`,
+                            'success'
+                        );
+                    } else {
+                        method.is_tracked = !newState;
+                        showToast('Errore durante il salvataggio della regola', 'error');
+                    }
+                } catch (e) {
+                    method.is_tracked = !newState;
+                    console.error('Error toggling method tracking:', e);
+                    showToast('Errore di connessione', 'error');
+                }
             }
 
             async function startLiveSession() {
                 if (!targetUserId.value) return;
-                await apiFetch(`/${apiPrefix}/studio/user-session`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        _token: csrfToken,
-                        user_id: targetUserId.value,
-                        duration_minutes: userDuration.value
-                    })
-                });
+                try {
+                    const res = await apiFetch(`/${apiPrefix}/studio/user-session`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            _token: csrfToken,
+                            user_id: targetUserId.value,
+                            duration_minutes: userDuration.value
+                        })
+                    });
+                    if (res.ok) {
+                        showToast(`Sessione live avviata per Utente #${targetUserId.value} (${userDuration.value} min)`, 'success');
+                    }
+                } catch (e) {}
                 await fetchStudioData();
             }
 
             async function stopLiveSession(ruleId) {
-                await apiFetch(`/${apiPrefix}/studio/user-session/${ruleId}`, {
-                    method: 'DELETE',
-                    body: JSON.stringify({ _token: csrfToken })
-                });
+                try {
+                    const res = await apiFetch(`/${apiPrefix}/studio/user-session/${ruleId}`, {
+                        method: 'DELETE',
+                        body: JSON.stringify({ _token: csrfToken })
+                    });
+                    if (res.ok) {
+                        showToast('Sessione live terminata.', 'info');
+                    }
+                } catch (e) {}
                 await fetchStudioData();
             }
 
@@ -2086,6 +2228,7 @@
                 // Actions
                 fetchLogs, goToPage, onPerPageChange, debounceFetchLogs, onFilterChange, setQuickFilter, resetFilters,
                 getVerbClass, getStatusClass, formatTimestamp, formatSeconds, openDetail, closeDetail, exportData,
+                toast, showToast,
             };
         }
     }).mount('#app');

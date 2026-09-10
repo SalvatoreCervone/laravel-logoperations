@@ -26,7 +26,7 @@ class AppScanner
     public function getRoutes(): array
     {
         $allRoutes = Route::getRoutes()->getRoutes();
-        $rules = OperationRule::routes()->get()->keyBy('target');
+        $rules = OperationRule::routes()->get();
 
         $result = [];
         $apiPrefix = config('logoperations.api_prefix', 'api/logoperations');
