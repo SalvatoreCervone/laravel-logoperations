@@ -1720,7 +1720,9 @@
             });
 
             function getRouteKey(r) {
-                return r.clean_uri || r.uri || '/';
+                const uri = r.clean_uri || r.uri || '/';
+                const methods = (r.methods && r.methods.length) ? r.methods.slice().sort().join(',') : '*';
+                return uri + '::' + methods;
             }
 
             const filteredRoutes = computed(() => {
@@ -1799,11 +1801,16 @@
 
             async function bulkSetTracking(isActive) {
                 if (selectedRouteKeys.value.length === 0) return;
-                const targets = [...selectedRouteKeys.value];
+                const selectedSet = new Set(selectedRouteKeys.value);
+                const selectedRoutes = [];
 
                 routes.value.forEach(r => {
-                    if (targets.includes(getRouteKey(r))) {
+                    if (selectedSet.has(getRouteKey(r))) {
                         r.is_tracked = isActive;
+                        selectedRoutes.push({
+                            target: r.clean_uri || r.uri || '/',
+                            methods: r.methods || ['*']
+                        });
                     }
                 });
 
@@ -1813,7 +1820,7 @@
                         body: JSON.stringify({
                             _token: csrfToken,
                             type: 'route',
-                            targets: targets,
+                            routes: selectedRoutes,
                             is_active: isActive
                         })
                     });
@@ -1824,12 +1831,17 @@
 
             async function bulkSetStackLevel(level) {
                 if (selectedRouteKeys.value.length === 0) return;
-                const targets = [...selectedRouteKeys.value];
+                const selectedSet = new Set(selectedRouteKeys.value);
+                const selectedRoutes = [];
 
                 routes.value.forEach(r => {
-                    if (targets.includes(getRouteKey(r))) {
+                    if (selectedSet.has(getRouteKey(r))) {
                         r.stack_level = level;
                         r.is_tracked = true;
+                        selectedRoutes.push({
+                            target: r.clean_uri || r.uri || '/',
+                            methods: r.methods || ['*']
+                        });
                     }
                 });
 
@@ -1839,7 +1851,7 @@
                         body: JSON.stringify({
                             _token: csrfToken,
                             type: 'route',
-                            targets: targets,
+                            routes: selectedRoutes,
                             stack_level: level,
                             is_active: true
                         })
@@ -1878,33 +1890,55 @@
             async function toggleRouteTracking(route) {
                 const newState = !route.is_tracked;
                 route.is_tracked = newState;
-                await apiFetch(`/${apiPrefix}/studio/rules`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        _token: csrfToken,
-                        type: 'route',
-                        target: route.clean_uri || route.uri || '/',
-                        name: route.controller || route.uri,
-                        is_active: newState,
-                        stack_level: route.stack_level || 'core',
-                        http_methods: route.methods || ['*']
-                    })
-                });
+                try {
+                    const res = await apiFetch(`/${apiPrefix}/studio/rules`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            _token: csrfToken,
+                            id: route.rule_id || null,
+                            type: 'route',
+                            target: route.clean_uri || route.uri || '/',
+                            name: route.controller || route.uri,
+                            is_active: newState,
+                            stack_level: route.stack_level || 'base',
+                            http_methods: route.methods || ['*']
+                        })
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data && data.data && data.data.id) {
+                            route.rule_id = data.data.id;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error toggling route tracking:', e);
+                }
             }
 
             async function updateRouteLevel(route) {
-                await apiFetch(`/${apiPrefix}/studio/rules`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        _token: csrfToken,
-                        type: 'route',
-                        target: route.clean_uri || route.uri || '/',
-                        name: route.controller || route.uri,
-                        is_active: route.is_tracked,
-                        stack_level: route.stack_level,
-                        http_methods: route.methods || ['*']
-                    })
-                });
+                try {
+                    const res = await apiFetch(`/${apiPrefix}/studio/rules`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            _token: csrfToken,
+                            id: route.rule_id || null,
+                            type: 'route',
+                            target: route.clean_uri || route.uri || '/',
+                            name: route.controller || route.uri,
+                            is_active: route.is_tracked,
+                            stack_level: route.stack_level,
+                            http_methods: route.methods || ['*']
+                        })
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data && data.data && data.data.id) {
+                            route.rule_id = data.data.id;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error updating route level:', e);
+                }
             }
 
             async function toggleMethodTracking(className, method) {

@@ -83,6 +83,7 @@ class TrackingRulesController extends Controller
     public function saveRule(Request $request, RuleEngine $engine): JsonResponse
     {
         $data = $request->validate([
+            'id'           => 'nullable|integer',
             'type'         => 'required|in:route,method',
             'target'       => 'required|string|max:512',
             'name'         => 'nullable|string|max:255',
@@ -91,18 +92,51 @@ class TrackingRulesController extends Controller
             'is_active'    => 'nullable|boolean',
         ]);
 
-        $rule = OperationRule::updateOrCreate(
-            [
-                'type'   => $data['type'],
-                'target' => $data['target'],
-            ],
-            [
-                'name'         => $data['name'] ?? null,
-                'http_methods' => $data['http_methods'] ?? ['*'],
-                'stack_level'  => $data['stack_level'] ?? ($data['type'] === 'method' ? 'core' : 'base'),
-                'is_active'    => $data['is_active'] ?? true,
-            ]
-        );
+        $type = $data['type'];
+        $target = $data['target'];
+        $methods = $data['http_methods'] ?? ($type === 'route' ? ['*'] : null);
+        if ($methods) {
+            $methods = array_values(array_unique(array_map('strtoupper', $methods)));
+            sort($methods);
+        }
+
+        $rule = null;
+        if (!empty($data['id'])) {
+            $rule = OperationRule::find($data['id']);
+        }
+
+        if (!$rule) {
+            $candidates = OperationRule::where('type', $type)
+                ->where('target', $target)
+                ->get();
+
+            if ($type === 'route' && $methods !== null) {
+                $rule = $candidates->first(function ($c) use ($methods) {
+                    $cMethods = $c->http_methods ?: ['*'];
+                    $cMethods = array_values(array_unique(array_map('strtoupper', $cMethods)));
+                    sort($cMethods);
+                    return $cMethods === $methods;
+                });
+            } else {
+                $rule = $candidates->first();
+            }
+        }
+
+        $attributes = [
+            'name'         => $data['name'] ?? ($rule ? $rule->name : null),
+            'http_methods' => $methods ?? ($rule ? $rule->http_methods : ['*']),
+            'stack_level'  => $data['stack_level'] ?? ($rule ? $rule->stack_level : ($type === 'method' ? 'core' : 'base')),
+            'is_active'    => array_key_exists('is_active', $data) ? (bool) $data['is_active'] : ($rule ? $rule->is_active : true),
+        ];
+
+        if ($rule) {
+            $rule->update($attributes);
+        } else {
+            $rule = OperationRule::create(array_merge([
+                'type'   => $type,
+                'target' => $target,
+            ], $attributes));
+        }
 
         $engine->flushCache();
 
@@ -119,18 +153,50 @@ class TrackingRulesController extends Controller
     public function bulkSaveRules(Request $request, RuleEngine $engine): JsonResponse
     {
         $data = $request->validate([
-            'targets'     => 'required|array|min:1',
-            'targets.*'   => 'required|string|max:512',
-            'type'        => 'required|in:route,method',
-            'is_active'   => 'nullable|boolean',
-            'stack_level' => 'nullable|in:base,core,full',
+            'targets'          => 'nullable|array',
+            'targets.*'        => 'string|max:512',
+            'routes'           => 'nullable|array',
+            'routes.*.target'  => 'required_with:routes|string|max:512',
+            'routes.*.methods' => 'nullable|array',
+            'type'             => 'required|in:route,method',
+            'is_active'        => 'nullable|boolean',
+            'stack_level'      => 'nullable|in:base,core,full',
         ]);
 
         $type = $data['type'];
-        $targets = array_unique($data['targets']);
+        $items = [];
 
-        DB::transaction(function () use ($targets, $type, $data) {
-            foreach ($targets as $target) {
+        if (!empty($data['routes'])) {
+            foreach ($data['routes'] as $r) {
+                $methods = !empty($r['methods']) ? array_values(array_unique(array_map('strtoupper', $r['methods']))) : ['*'];
+                sort($methods);
+                $key = $r['target'] . '::' . implode(',', $methods);
+                $items[$key] = [
+                    'target'  => $r['target'],
+                    'methods' => $methods,
+                ];
+            }
+        } elseif (!empty($data['targets'])) {
+            foreach (array_unique($data['targets']) as $target) {
+                $items[$target] = [
+                    'target'  => $target,
+                    'methods' => ['*'],
+                ];
+            }
+        }
+
+        if (empty($items)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Nessun elemento specificato.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($items, $type, $data) {
+            foreach ($items as $item) {
+                $target = $item['target'];
+                $methods = $item['methods'];
+
                 $values = [];
                 if (array_key_exists('is_active', $data)) {
                     $values['is_active'] = (bool) $data['is_active'];
@@ -139,7 +205,19 @@ class TrackingRulesController extends Controller
                     $values['stack_level'] = $data['stack_level'];
                 }
 
-                $rule = OperationRule::where('type', $type)->where('target', $target)->first();
+                $candidates = OperationRule::where('type', $type)->where('target', $target)->get();
+                $rule = null;
+
+                if ($type === 'route') {
+                    $rule = $candidates->first(function ($c) use ($methods) {
+                        $cMethods = $c->http_methods ?: ['*'];
+                        $cMethods = array_values(array_unique(array_map('strtoupper', $cMethods)));
+                        sort($cMethods);
+                        return $cMethods === $methods;
+                    });
+                } else {
+                    $rule = $candidates->first();
+                }
 
                 if ($rule) {
                     $rule->update($values);
@@ -148,7 +226,7 @@ class TrackingRulesController extends Controller
                         'type'         => $type,
                         'target'       => $target,
                         'name'         => $target,
-                        'http_methods' => ['*'],
+                        'http_methods' => $methods,
                         'stack_level'  => $values['stack_level'] ?? 'base',
                         'is_active'    => $values['is_active'] ?? true,
                     ], $values));
@@ -160,8 +238,8 @@ class TrackingRulesController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => count($targets) . ' regole aggiornate con successo.',
-            'count'   => count($targets),
+            'message' => count($items) . ' regole aggiornate con successo.',
+            'count'   => count($items),
         ]);
     }
 

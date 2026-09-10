@@ -61,11 +61,29 @@ class AppScanner
                 $controllerName = class_basename($action);
             }
 
-            // Verifica se esiste già una regola attiva
+            // Verifica se esiste già una regola attiva per questo URI e questo metodo
             $cleanUri = trim($uri, '/');
-            $rule = $rules->first(function ($r) use ($cleanUri) {
-                return $r->matchesUri($cleanUri);
+            $matchingRules = $rules->filter(function ($r) use ($cleanUri, $methods) {
+                if (!$r->matchesUri($cleanUri)) {
+                    return false;
+                }
+                $ruleMethods = $r->http_methods ?: ['*'];
+                if (in_array('*', $ruleMethods)) {
+                    return true;
+                }
+                foreach ($methods as $method) {
+                    if (in_array(strtoupper($method), array_map('strtoupper', $ruleMethods))) {
+                        return true;
+                    }
+                }
+                return false;
             });
+
+            // Seleziona la regola specifica per il metodo se presente, altrimenti la prima (es. wildcard)
+            $rule = $matchingRules->first(function ($r) {
+                $rm = $r->http_methods ?: ['*'];
+                return !in_array('*', $rm);
+            }) ?: $matchingRules->first();
 
             $result[] = [
                 'uri'             => $uri,
