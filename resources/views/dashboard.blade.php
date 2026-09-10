@@ -1054,28 +1054,137 @@
         <!-- ============================================================= -->
         <!-- TAB 3: STUDIO ROTTE                                           -->
         <!-- ============================================================= -->
+        <!-- ============================================================= -->
+        <!-- TAB 3: STUDIO ROTTE                                           -->
+        <!-- ============================================================= -->
         <div v-if="currentTab === 'studio_routes'" class="content-card">
-            <div class="content-header">
-                <div>
-                    <div class="content-title">Studio Rotte (Controllo Pagine & API Senza Codice)</div>
-                    <span style="font-size: 12px; color: var(--text-muted);">Riconoscimento automatico delle rotte applicative con attivazione del tracciamento a 1 click</span>
+            <div class="content-header" style="flex-direction: column; align-items: stretch; gap: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <div class="content-title">Studio Rotte (Controllo Pagine & API Senza Codice)</div>
+                        <span style="font-size: 12px; color: var(--text-muted);">Riconoscimento automatico delle rotte applicative con attivazione del tracciamento e livello di log a 1 click o massivo</span>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-muted); background: var(--surface-primary); border: 1px solid var(--border-subtle); padding: 5px 11px; border-radius: 6px;">
+                        <span style="color: var(--text-primary); font-weight: 600;">@{{ filteredRoutes.length }}</span> rotte visibili su <span style="color: var(--text-primary); font-weight: 600;">@{{ routes.length }}</span> totali
+                    </div>
                 </div>
-                <input v-model="routeFilter" type="text" class="filter-input-ctrl" placeholder="Filtra rotta o controller..." style="max-width: 250px;">
+
+                <!-- Barra Filtri Studio Rotte (Verbo, Controller, Stato, Ricerca) -->
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                    <!-- Filtro Verbo HTTP -->
+                    <div style="min-width: 130px;">
+                        <select v-model="routeVerbFilter" class="filter-input-ctrl">
+                            <option value="all">Tutti i verbi</option>
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="PATCH">PATCH</option>
+                            <option value="DELETE">DELETE</option>
+                        </select>
+                    </div>
+
+                    <!-- Filtro Controller -->
+                    <div style="min-width: 190px; max-width: 280px; flex: 1;">
+                        <select v-model="routeControllerFilter" class="filter-input-ctrl">
+                            <option value="all">Tutti i controller (@{{ uniqueControllers.length }})</option>
+                            <option v-for="ctrl in uniqueControllers" :key="ctrl" :value="ctrl">@{{ ctrl }}</option>
+                        </select>
+                    </div>
+
+                    <!-- Filtro Stato Tracciamento -->
+                    <div style="min-width: 150px;">
+                        <select v-model="routeTrackedFilter" class="filter-input-ctrl">
+                            <option value="all">Tutti gli stati</option>
+                            <option value="tracked">Solo monitorate</option>
+                            <option value="untracked">Non monitorate</option>
+                        </select>
+                    </div>
+
+                    <!-- Ricerca testuale URI o Metodo -->
+                    <div style="flex: 1; min-width: 180px;">
+                        <input v-model="routeFilter" type="text" class="filter-input-ctrl" placeholder="Cerca URI o metodo...">
+                    </div>
+
+                    <!-- Pulsante Reset Filtri -->
+                    <button v-if="routeFilter || routeVerbFilter !== 'all' || routeControllerFilter !== 'all' || routeTrackedFilter !== 'all'"
+                            @click="resetRouteFilters" 
+                            class="btn-reset-filters" 
+                            title="Azzera filtri"
+                            style="white-space: nowrap;">
+                        ✕ Reset
+                    </button>
+                </div>
+            </div>
+
+            <!-- BARRA AZIONI MASSIVE (visibile quando ci sono rotte selezionate) -->
+            <div v-if="selectedRouteKeys.length > 0" 
+                 style="margin: 0 0 16px 0; padding: 12px 16px; background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 600; color: #c7d2fe; font-size: 13px;">
+                        📌 @{{ selectedRouteKeys.length }} @{{ selectedRouteKeys.length === 1 ? 'rotta selezionata' : 'rotte selezionate' }}
+                    </span>
+                    <span style="font-size: 11.5px; color: var(--text-muted);">(su @{{ filteredRoutes.length }} filtrate)</span>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <!-- 1. Flagga (Attiva Tracciamento) -->
+                    <button @click="bulkSetTracking(true)" class="page-btn" style="background: rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.4); color: #6ee7b7; font-size: 12px; padding: 6px 12px; font-weight: 500;">
+                        ✓ Attiva Tracciamento (@{{ selectedRouteKeys.length }})
+                    </button>
+
+                    <!-- 2. Sflagga (Disattiva Tracciamento) -->
+                    <button @click="bulkSetTracking(false)" class="page-btn" style="background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.35); color: #fca5a5; font-size: 12px; padding: 6px 12px; font-weight: 500;">
+                        ✕ Disattiva Tracciamento
+                    </button>
+
+                    <!-- 3. Imposta Livello Massivo (Base, Core, Completo) -->
+                    <div style="display: flex; align-items: center; gap: 6px; border-left: 1px solid rgba(255, 255, 255, 0.15); padding-left: 10px; margin-left: 4px;">
+                        <span style="font-size: 12px; color: #e2e8f0;">Livello:</span>
+                        <select v-model="bulkStackLevel" class="filter-input-ctrl" style="padding: 5px 8px; width: auto; font-size: 12px;">
+                            <option value="base">Base</option>
+                            <option value="core">Core Stack</option>
+                            <option value="full">Completo</option>
+                        </select>
+                        <button @click="bulkSetStackLevel(bulkStackLevel)" class="page-btn" style="background: var(--primary); color: white; border-color: var(--primary); font-size: 12px; padding: 6px 12px; font-weight: 500;">
+                            Applica a Tutti
+                        </button>
+                    </div>
+
+                    <!-- Deseleziona tutte -->
+                    <button @click="selectedRouteKeys = []" class="btn-reset-filters" style="font-size: 12px; padding: 6px 10px;" title="Deseleziona tutte">
+                        Deseleziona
+                    </button>
+                </div>
             </div>
 
             <div class="table-responsive">
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th style="width: 80px;">Tracciamento</th>
-                            <th style="width: 130px;">Metodi</th>
+                            <th style="width: 44px; text-align: center;">
+                                <input type="checkbox" 
+                                       :checked="isAllSelected" 
+                                       :indeterminate.prop="isSomeSelected" 
+                                       @change="toggleSelectAll" 
+                                       title="Seleziona / deseleziona tutte le rotte filtrate"
+                                       style="cursor: pointer; width: 16px; height: 16px; accent-color: var(--primary);">
+                            </th>
+                            <th style="width: 85px;">Tracciamento</th>
+                            <th style="width: 120px;">Metodi</th>
                             <th>URI Rotta</th>
                             <th>Controller & Metodo</th>
                             <th style="width: 150px;">Livello Dettaglio</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="r in filteredRoutes" :key="r.uri + '-' + (r.methods ? r.methods.join('-') : '')">
+                        <tr v-for="r in filteredRoutes" :key="r.uri + '-' + (r.methods ? r.methods.join('-') : '')"
+                            :style="selectedRouteKeys.includes(getRouteKey(r)) ? 'background: rgba(99, 102, 241, 0.08);' : ''">
+                            <td style="text-align: center;">
+                                <input type="checkbox" 
+                                       :value="getRouteKey(r)" 
+                                       v-model="selectedRouteKeys" 
+                                       style="cursor: pointer; width: 16px; height: 16px; accent-color: var(--primary);">
+                            </td>
                             <td>
                                 <label class="toggle-switch">
                                     <input type="checkbox" :checked="r.is_tracked" @change="toggleRouteTracking(r)">
@@ -1095,6 +1204,11 @@
                                     <option value="core">Core Stack</option>
                                     <option value="full">Completo</option>
                                 </select>
+                            </td>
+                        </tr>
+                        <tr v-if="filteredRoutes.length === 0">
+                            <td colspan="6" style="padding: 30px; text-align: center; color: var(--text-muted);">
+                                Nessuna rotta trovata con i filtri selezionati.
                             </td>
                         </tr>
                     </tbody>
@@ -1314,6 +1428,11 @@
             // Tracking Studio State
             const routes = ref([]);
             const routeFilter = ref('');
+            const routeVerbFilter = ref('all');
+            const routeControllerFilter = ref('all');
+            const routeTrackedFilter = ref('all');
+            const selectedRouteKeys = ref([]);
+            const bulkStackLevel = ref('core');
             const classes = ref([]);
             const classFilter = ref('');
             const usersList = ref([]);
@@ -1589,12 +1708,146 @@
                 }
             }
 
+            const uniqueControllers = computed(() => {
+                if (!Array.isArray(routes.value)) return [];
+                const set = new Set();
+                routes.value.forEach(r => {
+                    if (r.controller) {
+                        set.add(r.controller);
+                    }
+                });
+                return Array.from(set).sort();
+            });
+
+            function getRouteKey(r) {
+                return r.clean_uri || r.uri || '/';
+            }
+
             const filteredRoutes = computed(() => {
                 if (!Array.isArray(routes.value)) return [];
-                if (!routeFilter.value) return routes.value;
-                const f = routeFilter.value.toLowerCase();
-                return routes.value.filter(r => (r.uri && r.uri.toLowerCase().includes(f)) || (r.controller && r.controller.toLowerCase().includes(f)));
+                return routes.value.filter(r => {
+                    // 1. Filtro Verbo HTTP
+                    if (routeVerbFilter.value !== 'all') {
+                        const verb = routeVerbFilter.value.toUpperCase();
+                        if (!r.methods || !r.methods.some(m => m.toUpperCase() === verb)) {
+                            return false;
+                        }
+                    }
+
+                    // 2. Filtro Controller
+                    if (routeControllerFilter.value !== 'all') {
+                        if (!r.controller || r.controller !== routeControllerFilter.value) {
+                            return false;
+                        }
+                    }
+
+                    // 3. Filtro Stato Tracciamento
+                    if (routeTrackedFilter.value === 'tracked' && !r.is_tracked) {
+                        return false;
+                    }
+                    if (routeTrackedFilter.value === 'untracked' && r.is_tracked) {
+                        return false;
+                    }
+
+                    // 4. Ricerca testuale
+                    if (routeFilter.value) {
+                        const f = routeFilter.value.toLowerCase();
+                        const uriMatch = (r.uri && r.uri.toLowerCase().includes(f)) || (r.clean_uri && r.clean_uri.toLowerCase().includes(f));
+                        const ctrlMatch = (r.controller && r.controller.toLowerCase().includes(f));
+                        const methodMatch = (r.controller_method && r.controller_method.toLowerCase().includes(f));
+                        if (!uriMatch && !ctrlMatch && !methodMatch) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                });
             });
+
+            const isAllSelected = computed(() => {
+                const list = filteredRoutes.value;
+                if (list.length === 0) return false;
+                return list.every(r => selectedRouteKeys.value.includes(getRouteKey(r)));
+            });
+
+            const isSomeSelected = computed(() => {
+                const list = filteredRoutes.value;
+                if (list.length === 0) return false;
+                const selectedCount = list.filter(r => selectedRouteKeys.value.includes(getRouteKey(r))).length;
+                return selectedCount > 0 && selectedCount < list.length;
+            });
+
+            function toggleSelectAll() {
+                const list = filteredRoutes.value;
+                if (list.length === 0) return;
+                if (isAllSelected.value) {
+                    const filteredKeys = new Set(list.map(getRouteKey));
+                    selectedRouteKeys.value = selectedRouteKeys.value.filter(k => !filteredKeys.has(k));
+                } else {
+                    const currentKeys = new Set(selectedRouteKeys.value);
+                    list.forEach(r => currentKeys.add(getRouteKey(r)));
+                    selectedRouteKeys.value = Array.from(currentKeys);
+                }
+            }
+
+            function resetRouteFilters() {
+                routeFilter.value = '';
+                routeVerbFilter.value = 'all';
+                routeControllerFilter.value = 'all';
+                routeTrackedFilter.value = 'all';
+            }
+
+            async function bulkSetTracking(isActive) {
+                if (selectedRouteKeys.value.length === 0) return;
+                const targets = [...selectedRouteKeys.value];
+
+                routes.value.forEach(r => {
+                    if (targets.includes(getRouteKey(r))) {
+                        r.is_tracked = isActive;
+                    }
+                });
+
+                try {
+                    await apiFetch(`/${apiPrefix}/studio/rules/bulk`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            _token: csrfToken,
+                            type: 'route',
+                            targets: targets,
+                            is_active: isActive
+                        })
+                    });
+                } catch (e) {
+                    console.error('Error in bulkSetTracking:', e);
+                }
+            }
+
+            async function bulkSetStackLevel(level) {
+                if (selectedRouteKeys.value.length === 0) return;
+                const targets = [...selectedRouteKeys.value];
+
+                routes.value.forEach(r => {
+                    if (targets.includes(getRouteKey(r))) {
+                        r.stack_level = level;
+                        r.is_tracked = true;
+                    }
+                });
+
+                try {
+                    await apiFetch(`/${apiPrefix}/studio/rules/bulk`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            _token: csrfToken,
+                            type: 'route',
+                            targets: targets,
+                            stack_level: level,
+                            is_active: true
+                        })
+                    });
+                } catch (e) {
+                    console.error('Error in bulkSetStackLevel:', e);
+                }
+            }
 
             const filteredClasses = computed(() => {
                 if (!Array.isArray(classes.value)) return [];
@@ -1633,7 +1886,8 @@
                         target: route.clean_uri || route.uri || '/',
                         name: route.controller || route.uri,
                         is_active: newState,
-                        stack_level: route.stack_level || 'core'
+                        stack_level: route.stack_level || 'core',
+                        http_methods: route.methods || ['*']
                     })
                 });
             }
@@ -1647,7 +1901,8 @@
                         target: route.clean_uri || route.uri || '/',
                         name: route.controller || route.uri,
                         is_active: route.is_tracked,
-                        stack_level: route.stack_level
+                        stack_level: route.stack_level,
+                        http_methods: route.methods || ['*']
                     })
                 });
             }
@@ -1785,7 +2040,10 @@
                 quickFilter, filterText, filterVerb, filterUser, filterDateFrom, filterDateTo, activeLog, modalTab,
                 modalStackView, displayedStackFrames,
                 // Studio
-                routes, routeFilter, filteredRoutes, classes, classFilter, filteredClasses, getCategoryBadgeStyle, usersList, activeSessions, targetUserId, userDuration,
+                routes, routeFilter, routeVerbFilter, routeControllerFilter, routeTrackedFilter, uniqueControllers,
+                selectedRouteKeys, bulkStackLevel, isAllSelected, isSomeSelected, toggleSelectAll, resetRouteFilters,
+                bulkSetTracking, bulkSetStackLevel, getRouteKey,
+                filteredRoutes, classes, classFilter, filteredClasses, getCategoryBadgeStyle, usersList, activeSessions, targetUserId, userDuration,
                 toggleRouteTracking, updateRouteLevel, toggleMethodTracking, startLiveSession, stopLiveSession,
                 // Storyboard
                 subjectsList, selectedSubjectKey, customSubjectType, customSubjectId, storyboardData, storyboardLoading,

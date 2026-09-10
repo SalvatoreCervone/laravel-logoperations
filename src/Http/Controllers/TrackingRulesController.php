@@ -114,6 +114,58 @@ class TrackingRulesController extends Controller
     }
 
     /**
+     * Salva o aggiorna in blocco le regole di tracciamento per più rotte o metodi.
+     */
+    public function bulkSaveRules(Request $request, RuleEngine $engine): JsonResponse
+    {
+        $data = $request->validate([
+            'targets'     => 'required|array|min:1',
+            'targets.*'   => 'required|string|max:512',
+            'type'        => 'required|in:route,method',
+            'is_active'   => 'nullable|boolean',
+            'stack_level' => 'nullable|in:base,core,full',
+        ]);
+
+        $type = $data['type'];
+        $targets = array_unique($data['targets']);
+
+        DB::transaction(function () use ($targets, $type, $data) {
+            foreach ($targets as $target) {
+                $values = [];
+                if (array_key_exists('is_active', $data)) {
+                    $values['is_active'] = (bool) $data['is_active'];
+                }
+                if (!empty($data['stack_level'])) {
+                    $values['stack_level'] = $data['stack_level'];
+                }
+
+                $rule = OperationRule::where('type', $type)->where('target', $target)->first();
+
+                if ($rule) {
+                    $rule->update($values);
+                } else {
+                    OperationRule::create(array_merge([
+                        'type'         => $type,
+                        'target'       => $target,
+                        'name'         => $target,
+                        'http_methods' => ['*'],
+                        'stack_level'  => $values['stack_level'] ?? 'base',
+                        'is_active'    => $values['is_active'] ?? true,
+                    ], $values));
+                }
+            }
+        });
+
+        $engine->flushCache();
+
+        return response()->json([
+            'success' => true,
+            'message' => count($targets) . ' regole aggiornate con successo.',
+            'count'   => count($targets),
+        ]);
+    }
+
+    /**
      * Attiva o disattiva istantaneamente una regola.
      */
     public function toggleRule(int $id, RuleEngine $engine): JsonResponse

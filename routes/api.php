@@ -46,6 +46,7 @@ $routeGroup = function () {
         Route::get('/classes', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'classesDiscovery']);
         Route::get('/rules', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'getRules']);
         Route::post('/rules', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'saveRule']);
+        Route::post('/rules/bulk', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'bulkSaveRules']);
         Route::patch('/rules/{id}/toggle', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'toggleRule']);
         Route::delete('/rules/{id}', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'deleteRule']);
         Route::get('/users', [\SalvatoreCervone\LogOperations\Http\Controllers\TrackingRulesController::class, 'searchUsers']);
