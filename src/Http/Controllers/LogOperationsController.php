@@ -81,10 +81,24 @@ class LogOperationsController extends Controller
                 $tableName . '.transaction_status',
                 $tableName . '.transaction_level',
                 $tableName . '.subject_type',
-                $tableName . '.subject_id',
-            ])
-            ->orderBy($tableName . '.dataoperazione', 'desc')
-            ->orderBy($tableName . '.id', 'desc');
+            ]);
+
+        // Ordinamento: default per dataoperazione DESC, id DESC (dal più recente al più vecchio)
+        $orderColumn = (string) $request->input('order_by', $request->input('sort', 'dataoperazione'));
+        $orderDirection = strtolower((string) $request->input('order_direction', $request->input('direction', 'desc'))) === 'asc' ? 'asc' : 'desc';
+
+        $allowedColumns = [
+            'id', 'dataoperazione', 'duration_ms', 'codicehttp', 'verbo', 'rotta', 'controllermethod', 'client_ip',
+        ];
+
+        if (!in_array($orderColumn, $allowedColumns, true)) {
+            $orderColumn = 'dataoperazione';
+        }
+
+        $query->orderBy($tableName . '.' . $orderColumn, $orderDirection);
+        if ($orderColumn !== 'id') {
+            $query->orderBy($tableName . '.id', $orderDirection);
+        }
 
         /*
         |----------------------------------------------------------------------

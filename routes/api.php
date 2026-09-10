@@ -33,8 +33,7 @@ $routeGroup = function () {
     Route::get('/export', [LogOperationsController::class, 'export']);
 
     // Dettaglio singolo log
-    Route::get('/{id}', [LogOperationsController::class, 'show'])
-        ->where('id', '[0-9]+');
+    Route::get('/{id}', [LogOperationsController::class, 'show'])->where('id', '[0-9]+');
 
     // Storyboard del record (timeline polimorfica di vita delle entità)
     Route::get('/storyboard', [LogOperationsController::class, 'storyboard']);
@@ -58,14 +57,9 @@ $routeGroup = function () {
 $prefix = config('logoperations.api_prefix', 'api/logoperations');
 $middleware = config('logoperations.api_middleware', ['api']);
 
-Route::prefix($prefix)
-    ->middleware($middleware)
-    ->group($routeGroup);
+Route::prefix($prefix)->middleware($middleware)->group($routeGroup);
 
 // Alias retrocompatibile se il prefisso principale è differente
 if ($prefix !== 'api/log-operations') {
-    Route::prefix('api/log-operations')
-        ->middleware($middleware)
-        ->group($routeGroup);
+    Route::prefix('api/log-operations')->middleware($middleware)->group($routeGroup);
 }
-

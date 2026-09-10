@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ function_exists('csrf_token') ? csrf_token() : '' }}">
     <title>LogOperations — {{ $appName }} Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1110,20 +1111,33 @@
                     <div class="content-title">Studio Funzioni (Dynamic Proxy & Interceptor Metodi)</div>
                     <span style="font-size: 12px; color: var(--text-muted);">Intercetta l'esecuzione dei metodi di business logic senza alterare il codice dell'applicazione</span>
                 </div>
+                <input v-model="classFilter" type="text" class="filter-input-ctrl" placeholder="Filtra classe o metodo..." style="max-width: 250px;">
             </div>
 
-            <div v-for="cls in classes" :key="cls.class" style="margin-bottom: 14px; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 14px;">
-                <div style="font-weight: 600; color: var(--text-primary); font-size: 13.5px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
-                    <span class="mono">@{{ cls.class }}</span>
-                    <span v-if="cls.has_traceable_attribute" class="badge" style="background: var(--accent-subtle); color: #c7d2fe; border: 1px solid rgba(99, 102, 241, 0.3);">#[Traceable]</span>
+            <div v-if="filteredClasses.length === 0" style="padding: 30px; text-align: center; color: var(--text-muted);">
+                Nessuna classe o funzione trovata corrispondente ai filtri.
+            </div>
+
+            <div v-for="cls in filteredClasses" :key="cls.class_name || cls.class" style="margin-bottom: 16px; background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                        <span class="badge" :style="getCategoryBadgeStyle(cls.category)">@{{ cls.category }}</span>
+                        <strong style="font-size: 15px; color: var(--text-primary);">@{{ cls.short_name }}</strong>
+                        <span class="mono" style="font-size: 12px; color: var(--text-muted);">@{{ cls.class_name || cls.class }}</span>
+                        <span v-if="cls.has_traceable_attribute" class="badge" style="background: var(--accent-subtle); color: #c7d2fe; border: 1px solid rgba(99, 102, 241, 0.3);">#[Traceable]</span>
+                    </div>
+                    <span style="font-size: 12px; color: var(--text-muted);">@{{ (cls.methods || []).length }} @{{ (cls.methods || []).length === 1 ? 'metodo' : 'metodi' }}</span>
                 </div>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <div v-for="m in cls.methods" :key="m.name" style="background: var(--surface-primary); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px; display: flex; align-items: center; gap: 8px;">
+                    <div v-for="m in cls.methods" :key="m.target || m.name" :style="{ background: m.is_tracked ? 'rgba(16, 185, 129, 0.08)' : 'var(--surface-primary)', border: m.is_tracked ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border-subtle)', borderRadius: '6px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '10px' }">
                         <label class="toggle-switch">
-                            <input type="checkbox" :checked="m.is_tracked" @change="toggleMethodTracking(cls.class, m)">
+                            <input type="checkbox" :checked="m.is_tracked" @change="toggleMethodTracking(cls.class_name || cls.class, m)">
                             <span class="slider"></span>
                         </label>
-                        <span class="mono" style="font-size: 12px; color: var(--text-secondary);">@{{ m.name }}()</span>
+                        <div>
+                            <span class="mono" :style="{ fontSize: '13px', fontWeight: '600', color: m.is_tracked ? '#34d399' : 'var(--text-primary)' }">@{{ m.name }}()</span>
+                            <span v-if="m.return_type && m.return_type !== 'mixed'" class="mono" style="font-size: 11px; color: #a5b4fc; margin-left: 4px;">: @{{ m.return_type }}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1301,6 +1315,7 @@
             const routes = ref([]);
             const routeFilter = ref('');
             const classes = ref([]);
+            const classFilter = ref('');
             const usersList = ref([]);
             const activeSessions = ref([]);
             const targetUserId = ref('');
@@ -1369,6 +1384,23 @@
                 window.open(getExportUrl(format), '_blank');
             }
 
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ function_exists('csrf_token') ? csrf_token() : '' }}';
+
+            async function apiFetch(url, options = {}) {
+                const headers = {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    ...(options.headers || {})
+                };
+                if (csrfToken) {
+                    headers['X-CSRF-TOKEN'] = csrfToken;
+                }
+                if (options.body && typeof options.body === 'string' && !headers['Content-Type']) {
+                    headers['Content-Type'] = 'application/json';
+                }
+                return fetch(url, { ...options, headers });
+            }
+
             async function fetchLogs(page = 1) {
                 loading.value = true;
                 try {
@@ -1387,24 +1419,55 @@
                     if (quickFilter.value === 'slow') params.append('min_duration', '1000');
                     if (quickFilter.value === '500') params.append('status_codes[]', '500');
 
-                    const res = await fetch(`/${apiPrefix}?${params.toString()}`);
+                    const res = await apiFetch(`/${apiPrefix}?${params.toString()}`);
                     const data = await res.json();
-                    logs.value = data.data || [];
-                    currentPage.value = data.current_page || 1;
+
+                    let list = [];
+                    let total = 0, lastPage = 1, from = 0, to = 0, currPage = page;
+
+                    if (Array.isArray(data)) {
+                        list = data;
+                        total = data.length;
+                        from = data.length > 0 ? 1 : 0;
+                        to = data.length;
+                    } else if (Array.isArray(data.data)) {
+                        list = data.data;
+                        total = data.total ?? data.data.length;
+                        lastPage = data.last_page ?? 1;
+                        from = data.from ?? (data.data.length > 0 ? 1 : 0);
+                        to = data.to ?? data.data.length;
+                        currPage = data.current_page ?? page;
+                    } else if (data.data && Array.isArray(data.data.data)) {
+                        list = data.data.data;
+                        total = data.data.total ?? data.data.data.length;
+                        lastPage = data.data.last_page ?? 1;
+                        from = data.data.from ?? (data.data.data.length > 0 ? 1 : 0);
+                        to = data.data.to ?? data.data.data.length;
+                        currPage = data.data.current_page ?? page;
+                    } else if (data.logs && Array.isArray(data.logs)) {
+                        list = data.logs;
+                        total = data.total ?? data.logs.length;
+                        lastPage = data.last_page ?? 1;
+                    }
+
+                    logs.value = list;
+                    currentPage.value = currPage;
                     pagination.value = {
-                        total: data.total || 0,
-                        last_page: data.last_page || 1,
-                        from: data.from || 0,
-                        to: data.to || 0,
+                        total: total,
+                        last_page: lastPage,
+                        from: from,
+                        to: to,
                     };
                 } catch (e) {
+                    console.error('Fetch logs error:', e);
                 } finally {
                     loading.value = false;
                 }
 
                 try {
-                    const sRes = await fetch(`/${apiPrefix}/stats`);
-                    stats.value = await sRes.json();
+                    const sRes = await apiFetch(`/${apiPrefix}/stats`);
+                    const sData = await sRes.json();
+                    stats.value = sData.data || sData || {};
                 } catch (e) {}
             }
 
@@ -1466,12 +1529,13 @@
 
             async function openDetail(log) {
                 try {
-                    const res = await fetch(`/${apiPrefix}/${log.id}`);
+                    const res = await apiFetch(`/${apiPrefix}/${log.id}`);
                     const detail = await res.json();
+                    const detailData = (detail.data && detail.data.data) ? detail.data.data : (detail.data || detail);
                     activeLog.value = {
-                        ...detail.data,
-                        core_stack: detail.core_stack,
-                        full_stack: detail.full_stack,
+                        ...detailData,
+                        core_stack: detail.core_stack || (detail.data && detail.data.core_stack) || detailData.core_stack,
+                        full_stack: detail.full_stack || (detail.data && detail.data.full_stack) || detailData.full_stack,
                     };
                     modalTab.value = 'overview';
                     modalStackView.value = 'core';
@@ -1497,10 +1561,10 @@
             async function fetchStudioData() {
                 try {
                     const [rRes, cRes, ruRes, uRes] = await Promise.all([
-                        fetch(`/${apiPrefix}/studio/routes`),
-                        fetch(`/${apiPrefix}/studio/classes`),
-                        fetch(`/${apiPrefix}/studio/rules`),
-                        fetch(`/${apiPrefix}/studio/users`),
+                        apiFetch(`/${apiPrefix}/studio/routes`),
+                        apiFetch(`/${apiPrefix}/studio/classes`),
+                        apiFetch(`/${apiPrefix}/studio/rules`),
+                        apiFetch(`/${apiPrefix}/studio/users`),
                     ]);
                     const rData = await rRes.json();
                     routes.value = rData.data || (Array.isArray(rData) ? rData : []);
@@ -1532,13 +1596,39 @@
                 return routes.value.filter(r => (r.uri && r.uri.toLowerCase().includes(f)) || (r.controller && r.controller.toLowerCase().includes(f)));
             });
 
+            const filteredClasses = computed(() => {
+                if (!Array.isArray(classes.value)) return [];
+                if (!classFilter.value) return classes.value;
+                const f = classFilter.value.toLowerCase();
+                return classes.value.filter(c => {
+                    const matchClass = (c.class_name && c.class_name.toLowerCase().includes(f)) ||
+                                       (c.short_name && c.short_name.toLowerCase().includes(f)) ||
+                                       (c.category && c.category.toLowerCase().includes(f));
+                    const matchMethod = (c.methods || []).some(m => m.name && m.name.toLowerCase().includes(f));
+                    return matchClass || matchMethod;
+                });
+            });
+
+            function getCategoryBadgeStyle(cat) {
+                switch (cat) {
+                    case 'Services': return { background: 'rgba(59, 130, 246, 0.2)', color: '#93c5fd', border: '1px solid rgba(59, 130, 246, 0.4)' };
+                    case 'Actions': return { background: 'rgba(16, 185, 129, 0.2)', color: '#6ee7b7', border: '1px solid rgba(16, 185, 129, 0.4)' };
+                    case 'Repositories': return { background: 'rgba(245, 158, 11, 0.2)', color: '#fcd34d', border: '1px solid rgba(245, 158, 11, 0.4)' };
+                    case 'Jobs': return { background: 'rgba(139, 92, 246, 0.2)', color: '#c4b5fd', border: '1px solid rgba(139, 92, 246, 0.4)' };
+                    case 'Controllers': return { background: 'rgba(6, 182, 212, 0.2)', color: '#67e8f9', border: '1px solid rgba(6, 182, 212, 0.4)' };
+                    case 'Models': return { background: 'rgba(236, 72, 153, 0.2)', color: '#f472b6', border: '1px solid rgba(236, 72, 153, 0.4)' };
+                    case 'Commands': return { background: 'rgba(234, 88, 12, 0.2)', color: '#fdba74', border: '1px solid rgba(234, 88, 12, 0.4)' };
+                    default: return { background: 'rgba(100, 116, 139, 0.2)', color: '#cbd5e1', border: '1px solid rgba(100, 116, 139, 0.4)' };
+                }
+            }
+
             async function toggleRouteTracking(route) {
                 const newState = !route.is_tracked;
                 route.is_tracked = newState;
-                await fetch(`/${apiPrefix}/studio/rules`, {
+                await apiFetch(`/${apiPrefix}/studio/rules`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                     body: JSON.stringify({
+                        _token: csrfToken,
                         type: 'route',
                         target: route.clean_uri || route.uri || '/',
                         name: route.controller || route.uri,
@@ -1549,10 +1639,10 @@
             }
 
             async function updateRouteLevel(route) {
-                await fetch(`/${apiPrefix}/studio/rules`, {
+                await apiFetch(`/${apiPrefix}/studio/rules`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                     body: JSON.stringify({
+                        _token: csrfToken,
                         type: 'route',
                         target: route.clean_uri || route.uri || '/',
                         name: route.controller || route.uri,
@@ -1563,36 +1653,49 @@
             }
 
             async function toggleMethodTracking(className, method) {
+                const targetClass = className || (method.target ? method.target.split('@')[0] : null);
+                if (!targetClass) return;
                 const newState = !method.is_tracked;
                 method.is_tracked = newState;
-                await fetch(`/${apiPrefix}/studio/rules`, {
+                await apiFetch(`/${apiPrefix}/studio/rules`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({ type: 'method', target: className + '@' + method.name, is_active: newState })
+                    body: JSON.stringify({
+                        _token: csrfToken,
+                        type: 'method',
+                        target: targetClass + '@' + method.name,
+                        is_active: newState
+                    })
                 });
             }
 
             async function startLiveSession() {
                 if (!targetUserId.value) return;
-                await fetch(`/${apiPrefix}/studio/user-session`, {
+                await apiFetch(`/${apiPrefix}/studio/user-session`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({ user_id: targetUserId.value, duration_minutes: userDuration.value })
+                    body: JSON.stringify({
+                        _token: csrfToken,
+                        user_id: targetUserId.value,
+                        duration_minutes: userDuration.value
+                    })
                 });
                 await fetchStudioData();
             }
 
             async function stopLiveSession(ruleId) {
-                await fetch(`/${apiPrefix}/studio/user-session/${ruleId}`, { method: 'DELETE' });
+                await apiFetch(`/${apiPrefix}/studio/user-session/${ruleId}`, {
+                    method: 'DELETE',
+                    body: JSON.stringify({ _token: csrfToken })
+                });
                 await fetchStudioData();
             }
 
             // Storyboard Logic
             async function fetchStoryboardSubjects() {
                 try {
-                    const res = await fetch(`/${apiPrefix}/storyboard/subjects`);
+                    const res = await apiFetch(`/${apiPrefix}/storyboard/subjects`);
                     if (res.ok) {
-                        subjectsList.value = await res.json();
+                        const sData = await res.json();
+                        subjectsList.value = sData.data || (Array.isArray(sData) ? sData : []);
                         if (subjectsList.value.length && !selectedSubjectKey.value) {
                             selectedSubjectKey.value = subjectsList.value[0].type + '::' + subjectsList.value[0].id;
                             customSubjectType.value = subjectsList.value[0].type;
@@ -1628,11 +1731,10 @@
                     url.searchParams.set('subject_id', customSubjectId.value);
                     url.searchParams.set('order', storyboardSort.value);
 
-                    const res = await fetch(url.toString(), {
-                        headers: { 'Accept': 'application/json' }
-                    });
+                    const res = await apiFetch(url.toString());
                     if (res.ok) {
-                        storyboardData.value = await res.json();
+                        const sbData = await res.json();
+                        storyboardData.value = sbData.data || sbData || { events: [] };
                     }
                 } catch (e) {
                 } finally {
@@ -1683,7 +1785,7 @@
                 quickFilter, filterText, filterVerb, filterUser, filterDateFrom, filterDateTo, activeLog, modalTab,
                 modalStackView, displayedStackFrames,
                 // Studio
-                routes, routeFilter, filteredRoutes, classes, usersList, activeSessions, targetUserId, userDuration,
+                routes, routeFilter, filteredRoutes, classes, classFilter, filteredClasses, getCategoryBadgeStyle, usersList, activeSessions, targetUserId, userDuration,
                 toggleRouteTracking, updateRouteLevel, toggleMethodTracking, startLiveSession, stopLiveSession,
                 // Storyboard
                 subjectsList, selectedSubjectKey, customSubjectType, customSubjectId, storyboardData, storyboardLoading,

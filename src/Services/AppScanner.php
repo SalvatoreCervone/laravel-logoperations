@@ -146,6 +146,14 @@ class AppScanner
                         continue;
                     }
 
+                    // Ignora metodi definiti in trait o file esterni in vendor (es. Illuminate\Bus\Queueable, Dispatchable)
+                    if ($method->getFileName()) {
+                        $methodFile = str_replace('\\', '/', $method->getFileName());
+                        if (str_contains($methodFile, '/vendor/')) {
+                            continue;
+                        }
+                    }
+
                     $targetKey = $className . '@' . $method->getName();
                     $rule = $rules->get($targetKey);
 
@@ -182,12 +190,18 @@ class AppScanner
                     elseif (str_contains($className, '\\Repositories\\')) $category = 'Repositories';
                     elseif (str_contains($className, '\\Controllers\\')) $category = 'Controllers';
                     elseif (str_contains($className, '\\Models\\')) $category = 'Models';
+                    elseif (str_contains($className, '\\Jobs\\')) $category = 'Jobs';
+                    elseif (str_contains($className, '\\Listeners\\')) $category = 'Listeners';
+                    elseif (str_contains($className, '\\Events\\')) $category = 'Events';
+                    elseif (str_contains($className, '\\Commands\\')) $category = 'Commands';
 
                     $classes[] = [
-                        'class_name' => $className,
-                        'short_name' => $ref->getShortName(),
-                        'category'   => $category,
-                        'methods'    => $methods,
+                        'class'                   => $className,
+                        'class_name'              => $className,
+                        'short_name'              => $ref->getShortName(),
+                        'category'                => $category,
+                        'has_traceable_attribute' => !empty($ref->getAttributes(\SalvatoreCervone\LogOperations\Attributes\Traceable::class)),
+                        'methods'                 => $methods,
                     ];
                 }
             } catch (\Throwable $e) {

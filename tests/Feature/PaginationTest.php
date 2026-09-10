@@ -128,4 +128,66 @@ class PaginationTest extends TestCase
         rsort($sortedIds);
         $this->assertEquals($sortedIds, $ids);
     }
+
+    public function test_logs_are_ordered_by_dataoperazione_desc_by_default(): void
+    {
+        $base = now();
+        $logOld = OperationLog::create([
+            'rotta' => '/old-route',
+            'verbo' => 'get',
+            'codicehttp' => 200,
+            'client_ip' => '127.0.0.1',
+            'dataoperazione' => $base->copy()->subHours(2),
+        ]);
+        $logMid = OperationLog::create([
+            'rotta' => '/mid-route',
+            'verbo' => 'get',
+            'codicehttp' => 200,
+            'client_ip' => '127.0.0.1',
+            'dataoperazione' => $base->copy()->subHour(),
+        ]);
+        $logNew = OperationLog::create([
+            'rotta' => '/new-route',
+            'verbo' => 'get',
+            'codicehttp' => 200,
+            'client_ip' => '127.0.0.1',
+            'dataoperazione' => $base,
+        ]);
+
+        $response = $this->getJson('/api/logoperations?page=1&per_page=20');
+        $response->assertStatus(200);
+
+        $data = $response->json('data');
+        $this->assertGreaterThanOrEqual(3, count($data));
+        // Il primo log deve essere quello più recente
+        $this->assertEquals($logNew->id, $data[0]['id']);
+        $this->assertEquals($logMid->id, $data[1]['id']);
+        $this->assertEquals($logOld->id, $data[2]['id']);
+    }
+
+    public function test_logs_can_be_ordered_ascending_with_order_direction(): void
+    {
+        $base = now();
+        $logOld = OperationLog::create([
+            'rotta' => '/asc-old',
+            'verbo' => 'get',
+            'codicehttp' => 200,
+            'client_ip' => '127.0.0.1',
+            'dataoperazione' => $base->copy()->subHours(2),
+        ]);
+        $logNew = OperationLog::create([
+            'rotta' => '/asc-new',
+            'verbo' => 'get',
+            'codicehttp' => 200,
+            'client_ip' => '127.0.0.1',
+            'dataoperazione' => $base,
+        ]);
+
+        $response = $this->getJson('/api/logoperations?order_direction=asc');
+        $response->assertStatus(200);
+
+        $data = $response->json('data');
+        $this->assertEquals($logOld->id, $data[0]['id']);
+        $this->assertEquals($logNew->id, $data[1]['id']);
+    }
 }
