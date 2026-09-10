@@ -338,4 +338,13 @@ class LogOperationsMiddlewareTest extends TestCase
         $this->assertEquals('blue', $log->parametri['querystring']['color'] ?? null);
         $this->assertEquals('M', $log->parametri['querystring']['size'] ?? null);
     }
+
+    public function test_auto_register_middleware_injects_into_web_and_api_groups(): void
+    {
+        $router = app('router');
+        $groups = $router->getMiddlewareGroups();
+
+        $this->assertContains(LogOperationsMiddleware::class, $groups['web']);
+        $this->assertContains(LogOperationsMiddleware::class, $groups['api']);
+    }
 }

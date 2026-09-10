@@ -40,6 +40,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Auto-Registrazione Middleware nei Gruppi (Zero-Configuration)
+    |--------------------------------------------------------------------------
+    |
+    | Se abilitato (true), il package inietta automaticamente LogOperationsMiddleware
+    | nei gruppi middleware 'web' e 'api' di Laravel tramite il Router.
+    | Con la modalità 'selective' predefinita l'overhead è trascurabile: le rotte
+    | non attivate nello Studio Rotte vengono ignorate all'istante, mentre quelle
+    | attivate dal pannello vengono tracciate subito senza dover modificare
+    | manualmente bootstrap/app.php o Kernel.php.
+    |
+    */
+
+    'auto_register_middleware' => env('LOG_OPERATIONS_AUTO_REGISTER_MIDDLEWARE', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Paracadute Errori di Sistema (Safety Net)
     |--------------------------------------------------------------------------
     |

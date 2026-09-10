@@ -55,6 +55,12 @@ class LogOperationsMiddleware
             return $next($request);
         }
 
+        // Protezione anti-duplicazione nel caso il middleware sia presente sia globalmente che per gruppo/rotta
+        if ($request->attributes->has('_logoperations_processed')) {
+            return $next($request);
+        }
+        $request->attributes->set('_logoperations_processed', true);
+
         // Registra il tempo di inizio per calcolare la durata
         $startTime = microtime(true);
 

@@ -102,6 +102,12 @@ class LogOperationsServiceProvider extends ServiceProvider
         $router->aliasMiddleware('log.operations', LogOperationsMiddleware::class);
         $router->aliasMiddleware('logoperations', LogOperationsMiddleware::class);
 
+        // Auto-registrazione nei gruppi middleware 'web' e 'api' (Zero-Configuration)
+        if (config('logoperations.auto_register_middleware', true)) {
+            $router->pushMiddlewareToGroup('web', LogOperationsMiddleware::class);
+            $router->pushMiddlewareToGroup('api', LogOperationsMiddleware::class);
+        }
+
         // Registrazione comandi console
         if ($this->app->runningInConsole()) {
             $this->commands([
