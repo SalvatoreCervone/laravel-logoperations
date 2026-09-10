@@ -303,4 +303,39 @@ class LogOperationsMiddlewareTest extends TestCase
             'rotta' => '/custom-admin/logs-panel',
         ]);
     }
+
+    public function test_it_logs_flagged_get_route_with_parameters_and_querystring_in_selective_mode(): void
+    {
+        config(['logoperations.mode' => 'selective']);
+
+        // Crea la regola per la rotta con parametro dinamico
+        \SalvatoreCervone\LogOperations\Models\OperationRule::create([
+            'type' => 'route',
+            'target' => 'api/products/{id}',
+            'http_methods' => ['GET'],
+            'stack_level' => 'core',
+            'is_active' => true,
+        ]);
+        app(\SalvatoreCervone\LogOperations\Services\RuleEngine::class)->flushCache();
+
+        Route::middleware(LogOperationsMiddleware::class)->get('/api/products/{id}', function ($id) {
+            return response()->json(['product_id' => $id]);
+        });
+
+        // Esegui la richiesta GET con parametro di rotta e querystring
+        $response = $this->getJson('/api/products/42?color=blue&size=M');
+        $response->assertStatus(200);
+
+        // Verifica che sia stato loggato nonostante la modalità sia selective
+        $log = OperationLog::where('rotta', 'like', '/api/products/42%')->first();
+        $this->assertNotNull($log, 'Il log per la rotta GET con parametri deve esistere.');
+        $this->assertEquals('get', $log->verbo);
+        $this->assertEquals(200, $log->codicehttp);
+
+        // Verifica che i parametri di rotta e query string siano stati catturati correttamente
+        $this->assertIsArray($log->parametri);
+        $this->assertEquals('42', $log->parametri['route']['id'] ?? null);
+        $this->assertEquals('blue', $log->parametri['querystring']['color'] ?? null);
+        $this->assertEquals('M', $log->parametri['querystring']['size'] ?? null);
+    }
 }

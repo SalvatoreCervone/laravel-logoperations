@@ -109,10 +109,25 @@ class OperationRule extends Model
      */
     public function matchesUri(string $uri): bool
     {
-        $pattern = trim($this->target, '/');
-        $cleanUri = trim($uri, '/');
+        $pattern = trim(strtok($this->target, '?'), '/');
+        $cleanUri = trim(strtok($uri, '?'), '/');
 
-        return Str::is($pattern, $cleanUri);
+        if (Str::is($pattern, $cleanUri) || $pattern === $cleanUri) {
+            return true;
+        }
+
+        if (str_contains($pattern, '{')) {
+            $regex = preg_quote($pattern, '#');
+            // Gestione parametri opzionali /{param?}
+            $regex = preg_replace('/\/\\\{[a-zA-Z0-9_]+\\\\\?\\\}/', '(?:/[^/]+)?', $regex);
+            // Gestione parametri obbligatori {param}
+            $regex = preg_replace('/\\\{[a-zA-Z0-9_]+\\\}/', '[^/]+', $regex);
+            if (preg_match('#^' . $regex . '$#i', $cleanUri)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

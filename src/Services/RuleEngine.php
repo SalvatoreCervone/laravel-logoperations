@@ -132,9 +132,11 @@ class RuleEngine
         // 2. Verifica regole dinamiche sulle rotte
         $path = $request->path();
         $method = $request->method();
+        $route = $request->route();
+        $routeUri = ($route && method_exists($route, 'uri')) ? $route->uri() : null;
 
         foreach ($active['routes'] as $rule) {
-            if ($this->matchUri($rule['target'], $path) && $this->matchMethod($rule['http_methods'], $method)) {
+            if ($this->matchUri($rule['target'], $path, $routeUri) && $this->matchMethod($rule['http_methods'], $method)) {
                 return [
                     'should_log'        => true,
                     'stack_level'       => $rule['stack_level'],
@@ -167,14 +169,39 @@ class RuleEngine
     }
 
     /**
-     * Verifica pattern URI.
+     * Verifica pattern URI supportando wildcard, template Laravel (es. users/{id}) e query string.
      */
-    protected function matchUri(string $pattern, string $uri): bool
+    protected function matchUri(string $pattern, string $uri, ?string $routeUri = null): bool
     {
-        $pattern = trim($pattern, '/');
-        $uri = trim($uri, '/');
+        $pattern = trim(strtok($pattern, '?'), '/');
+        $uri = trim(strtok($uri, '?'), '/');
 
-        return \Illuminate\Support\Str::is($pattern, $uri);
+        // 1. Corrispondenza esatta o wildcard diretta sul path
+        if (\Illuminate\Support\Str::is($pattern, $uri) || $pattern === $uri) {
+            return true;
+        }
+
+        // 2. Corrispondenza con il template della rotta registrata in Laravel (es. "api/users/{id}")
+        if ($routeUri !== null) {
+            $cleanRouteUri = trim(strtok($routeUri, '?'), '/');
+            if ($pattern === $cleanRouteUri || \Illuminate\Support\Str::is($pattern, $cleanRouteUri)) {
+                return true;
+            }
+        }
+
+        // 3. Risoluzione dei parametri dinamici tipo {id}, {slug}, {user?} nel pattern rispetto al path effettivo
+        if (str_contains($pattern, '{')) {
+            $regex = preg_quote($pattern, '#');
+            // Gestione parametri opzionali /{param?}
+            $regex = preg_replace('/\/\\\{[a-zA-Z0-9_]+\\\\\?\\\}/', '(?:/[^/]+)?', $regex);
+            // Gestione parametri obbligatori {param}
+            $regex = preg_replace('/\\\{[a-zA-Z0-9_]+\\\}/', '[^/]+', $regex);
+            if (preg_match('#^' . $regex . '$#i', $uri)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
