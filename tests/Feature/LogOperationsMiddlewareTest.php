@@ -347,4 +347,99 @@ class LogOperationsMiddlewareTest extends TestCase
         $this->assertContains(LogOperationsMiddleware::class, $groups['web']);
         $this->assertContains(LogOperationsMiddleware::class, $groups['api']);
     }
+
+    public function test_route_rule_with_core_stack_captures_core_frames_on_200_even_when_only_on_error_is_true(): void
+    {
+        config([
+            'logoperations.mode' => 'selective',
+            'logoperations.stack_trace.enabled' => true,
+            'logoperations.stack_trace.only_on_error' => true,
+        ]);
+
+        \SalvatoreCervone\LogOperations\Models\OperationRule::create([
+            'type' => 'route',
+            'target' => 'api/test-core-stack',
+            'http_methods' => ['GET'],
+            'stack_level' => 'core',
+            'is_active' => true,
+        ]);
+        app(\SalvatoreCervone\LogOperations\Services\RuleEngine::class)->flushCache();
+
+        Route::middleware(LogOperationsMiddleware::class)->get('/api/test-core-stack', function () {
+            return response()->json(['status' => 'ok']);
+        });
+
+        $response = $this->getJson('/api/test-core-stack');
+        $response->assertStatus(200);
+
+        $log = OperationLog::where('rotta', '/api/test-core-stack')->first();
+        $this->assertNotNull($log);
+        $this->assertNotNull($log->stack_trace, 'Lo stack trace deve essere presente per il livello core anche su 200 OK');
+        $this->assertNotEmpty($log->stack_trace);
+        // Tutti i frame catturati devono essere 'is_core' = true
+        foreach ($log->stack_trace as $frame) {
+            $this->assertTrue($frame['is_core']);
+        }
+    }
+
+    public function test_route_rule_with_full_stack_captures_full_frames_on_200_even_when_only_on_error_is_true(): void
+    {
+        config([
+            'logoperations.mode' => 'selective',
+            'logoperations.stack_trace.enabled' => true,
+            'logoperations.stack_trace.only_on_error' => true,
+        ]);
+
+        \SalvatoreCervone\LogOperations\Models\OperationRule::create([
+            'type' => 'route',
+            'target' => 'api/test-full-stack',
+            'http_methods' => ['GET'],
+            'stack_level' => 'full',
+            'is_active' => true,
+        ]);
+        app(\SalvatoreCervone\LogOperations\Services\RuleEngine::class)->flushCache();
+
+        Route::middleware(LogOperationsMiddleware::class)->get('/api/test-full-stack', function () {
+            return response()->json(['status' => 'ok']);
+        });
+
+        $response = $this->getJson('/api/test-full-stack');
+        $response->assertStatus(200);
+
+        $log = OperationLog::where('rotta', '/api/test-full-stack')->first();
+        $this->assertNotNull($log);
+        $this->assertNotNull($log->stack_trace, 'Lo stack trace deve essere presente per il livello full');
+        $this->assertNotEmpty($log->stack_trace);
+        // Nel livello full ci sono anche i frame del framework/pipeline
+        $this->assertGreaterThanOrEqual(1, count($log->stack_trace));
+    }
+
+    public function test_route_rule_with_base_stack_returns_null_stack_on_200(): void
+    {
+        config([
+            'logoperations.mode' => 'selective',
+            'logoperations.stack_trace.enabled' => true,
+            'logoperations.stack_trace.only_on_error' => true,
+        ]);
+
+        \SalvatoreCervone\LogOperations\Models\OperationRule::create([
+            'type' => 'route',
+            'target' => 'api/test-base-stack',
+            'http_methods' => ['GET'],
+            'stack_level' => 'base',
+            'is_active' => true,
+        ]);
+        app(\SalvatoreCervone\LogOperations\Services\RuleEngine::class)->flushCache();
+
+        Route::middleware(LogOperationsMiddleware::class)->get('/api/test-base-stack', function () {
+            return response()->json(['status' => 'ok']);
+        });
+
+        $response = $this->getJson('/api/test-base-stack');
+        $response->assertStatus(200);
+
+        $log = OperationLog::where('rotta', '/api/test-base-stack')->first();
+        $this->assertNotNull($log);
+        $this->assertNull($log->stack_trace, 'Lo stack trace deve essere null per il livello base su 200 OK');
+    }
 }

@@ -174,9 +174,14 @@ class LogOperationsMiddleware
             $errorMessage = $this->captureError($response, $statusCode);
 
             // Step e trace personalizzati dal codice applicativo
-            // Se only_on_error è attivo e la richiesta ha successo (< 400), db_callers non viene iniettato
-            // per mantenere il log dei 200 OK compatto e leggero.
-            $isSuccessAndOnlyOnError = ($statusCode < 400 && $this->stackTracer->isOnlyOnError());
+            // Se la rotta ha una regola dinamica esplicita nello Studio Rotte, rispettiamo il livello scelto ('base', 'core', 'full').
+            // Se non c'è una regola esplicita (fallback statico), applichiamo la logica globale only_on_error.
+            $stackLevel = ($ruleEvaluation && ($ruleEvaluation['matched_by'] ?? 'none') !== 'none')
+                ? ($ruleEvaluation['stack_level'] ?? null)
+                : null;
+
+            $suppressDetailsOnSuccess = ($stackLevel === 'base') || ($stackLevel === null && $this->stackTracer->isOnlyOnError());
+            $isSuccessAndSuppress = ($statusCode < 400 && !isset($response->exception) && $suppressDetailsOnSuccess);
             $customTraces = null;
 
             if ($this->manager->hasCustomTraces() || $this->manager->hasTags() || $this->manager->hasContext()) {
@@ -185,9 +190,9 @@ class LogOperationsMiddleware
                     'traces' => $this->manager->getTraces(),
                     'tags' => $this->manager->getTags(),
                     'context' => $this->privacyManager->maskSensitiveData($this->manager->getContext()),
-                    'db_callers' => $isSuccessAndOnlyOnError ? [] : $this->stackTracer->getDbCallers(),
+                    'db_callers' => $isSuccessAndSuppress ? [] : $this->stackTracer->getDbCallers(),
                 ];
-            } elseif (!$isSuccessAndOnlyOnError && !empty($this->stackTracer->getDbCallers())) {
+            } elseif (!$isSuccessAndSuppress && !empty($this->stackTracer->getDbCallers())) {
                 $customTraces = [
                     'steps' => [],
                     'traces' => [],
@@ -198,7 +203,7 @@ class LogOperationsMiddleware
             }
 
             // Stack trace a 2 livelli calibrato sul livello di tracciamento
-            $stackTrace = $this->captureStack($response, $statusCode, $route, $customTraces, $ruleEvaluation['stack_level'] ?? null);
+            $stackTrace = $this->captureStack($response, $statusCode, $route, $customTraces, $stackLevel);
 
             $clientIp = $request->ip();
             if (config('logoperations.privacy.anonymize_ip', false)) {
@@ -515,8 +520,11 @@ class LogOperationsMiddleware
             return null;
         }
 
-        // Se configurato globalmente solo su errori, verifica lo status
-        if ($this->stackTracer->isOnlyOnError() && $statusCode < 400 && !isset($response->exception)) {
+        // Se la rotta NON ha un livello specificato esplicitamente dalla regola dello Studio,
+        // applichiamo la configurazione globale only_on_error (default: true).
+        // Se invece l'utente ha impostato esplicitamente 'core' o 'full' sulla rotta,
+        // la sua intenzione è di tracciare lo stack anche per le chiamate 200 OK.
+        if ($stackLevel === null && $this->stackTracer->isOnlyOnError() && $statusCode < 400 && !isset($response->exception)) {
             return null;
         }
 

@@ -150,7 +150,7 @@ class RuleEngine
         // 3. Fallback alla configurazione statica
         return [
             'should_log'        => false,
-            'stack_level'       => config('logoperations.stack_trace.default_view', 'core'),
+            'stack_level'       => null,
             'matched_by'        => 'none',
             'is_user_monitored' => false,
             'rule_id'           => null,

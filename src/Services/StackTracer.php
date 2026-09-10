@@ -117,8 +117,9 @@ class StackTracer
         $controllerMethod = null;
         if ($route) {
             $action = $route->getAction();
-            if (!empty($action['controller']) && is_string($action['controller'])) {
-                $parts = explode('@', $action['controller']);
+            $controllerAction = $action['controller'] ?? (is_string($action['uses'] ?? null) ? $action['uses'] : null);
+            if (!empty($controllerAction) && is_string($controllerAction)) {
+                $parts = explode('@', $controllerAction);
                 $controllerClass = $parts[0] ?? null;
                 $controllerMethod = $parts[1] ?? '__invoke';
             }
@@ -159,17 +160,24 @@ class StackTracer
         // 3. Controller o Closure che ha gestito la richiesta
         if ($route) {
             $action = $route->getAction();
-            if (!empty($action['controller']) && is_string($action['controller'])) {
-                $parts = explode('@', $action['controller']);
+            $controllerAction = $action['controller'] ?? (is_string($action['uses'] ?? null) ? $action['uses'] : null);
+            if (!empty($controllerAction) && is_string($controllerAction)) {
+                $parts = explode('@', $controllerAction);
                 $class = $parts[0] ?? null;
                 $method = $parts[1] ?? '__invoke';
                 $file = null;
                 $line = null;
                 if ($class && class_exists($class)) {
                     try {
-                        $ref = new \ReflectionMethod($class, $method);
-                        $file = $ref->getFileName();
-                        $line = $ref->getStartLine();
+                        if (method_exists($class, $method)) {
+                            $ref = new \ReflectionMethod($class, $method);
+                            $file = $ref->getFileName();
+                            $line = $ref->getStartLine();
+                        } else {
+                            $refClass = new \ReflectionClass($class);
+                            $file = $refClass->getFileName();
+                            $line = $refClass->getStartLine();
+                        }
                     } catch (\Throwable $e) {}
                 }
                 $coreFrames[] = [
@@ -328,10 +336,13 @@ class StackTracer
             return false;
         }
 
+        $normalized = str_replace('\\', '/', $filePath);
+
         foreach ($this->projectPaths as $projectPath) {
-            // Supporto sia percorsi relativi che assoluti
-            if (str_contains($filePath, '/' . ltrim($projectPath, '/'))
-                || str_contains($filePath, '\\' . ltrim($projectPath, '/'))
+            $cleanProject = trim(str_replace('\\', '/', $projectPath), '/');
+            if (
+                str_starts_with($normalized, $cleanProject . '/')
+                || str_contains($normalized, '/' . $cleanProject . '/')
             ) {
                 return true;
             }
