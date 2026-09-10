@@ -1074,7 +1074,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="r in filteredRoutes" :key="r.uri">
+                        <tr v-for="r in filteredRoutes" :key="r.uri + '-' + (r.methods ? r.methods.join('-') : '')">
                             <td>
                                 <label class="toggle-switch">
                                     <input type="checkbox" :checked="r.is_tracked" @change="toggleRouteTracking(r)">
@@ -1502,18 +1502,34 @@
                         fetch(`/${apiPrefix}/studio/rules`),
                         fetch(`/${apiPrefix}/studio/users`),
                     ]);
-                    routes.value = await rRes.json();
-                    classes.value = await cRes.json();
-                    const rules = await ruRes.json();
-                    usersList.value = await uRes.json();
-                    activeSessions.value = rules.filter(r => r.type === 'user_session' && r.is_active);
-                } catch (e) {}
+                    const rData = await rRes.json();
+                    routes.value = rData.data || (Array.isArray(rData) ? rData : []);
+
+                    const cData = await cRes.json();
+                    classes.value = cData.data || (Array.isArray(cData) ? cData : []);
+
+                    const ruData = await ruRes.json();
+                    const rules = ruData.data || (Array.isArray(ruData) ? ruData : []);
+
+                    const uData = await uRes.json();
+                    usersList.value = uData.data || (Array.isArray(uData) ? uData : []);
+
+                    activeSessions.value = rules
+                        .filter(r => r.type === 'user_session' && r.is_active && !r.is_expired)
+                        .map(s => ({
+                            ...s,
+                            seconds_left: s.seconds_remaining != null ? s.seconds_remaining : (s.expires_at ? Math.max(0, Math.floor((new Date(s.expires_at) - new Date()) / 1000)) : 0)
+                        }));
+                } catch (e) {
+                    console.error('Error in fetchStudioData:', e);
+                }
             }
 
             const filteredRoutes = computed(() => {
+                if (!Array.isArray(routes.value)) return [];
                 if (!routeFilter.value) return routes.value;
                 const f = routeFilter.value.toLowerCase();
-                return routes.value.filter(r => r.uri.toLowerCase().includes(f) || (r.controller && r.controller.toLowerCase().includes(f)));
+                return routes.value.filter(r => (r.uri && r.uri.toLowerCase().includes(f)) || (r.controller && r.controller.toLowerCase().includes(f)));
             });
 
             async function toggleRouteTracking(route) {
@@ -1522,7 +1538,13 @@
                 await fetch(`/${apiPrefix}/studio/rules`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({ type: 'route', target: route.clean_uri, is_active: newState, stack_level: route.stack_level || 'core' })
+                    body: JSON.stringify({
+                        type: 'route',
+                        target: route.clean_uri || route.uri || '/',
+                        name: route.controller || route.uri,
+                        is_active: newState,
+                        stack_level: route.stack_level || 'core'
+                    })
                 });
             }
 
@@ -1530,7 +1552,13 @@
                 await fetch(`/${apiPrefix}/studio/rules`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({ type: 'route', target: route.clean_uri, is_active: route.is_tracked, stack_level: route.stack_level })
+                    body: JSON.stringify({
+                        type: 'route',
+                        target: route.clean_uri || route.uri || '/',
+                        name: route.controller || route.uri,
+                        is_active: route.is_tracked,
+                        stack_level: route.stack_level
+                    })
                 });
             }
 
