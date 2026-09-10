@@ -442,4 +442,63 @@ class LogOperationsMiddlewareTest extends TestCase
         $this->assertNotNull($log);
         $this->assertNull($log->stack_trace, 'Lo stack trace deve essere null per il livello base su 200 OK');
     }
+
+    public function test_excluded_status_codes_are_not_logged_even_if_route_is_flagged(): void
+    {
+        config([
+            'logoperations.mode' => 'selective',
+            'logoperations.excluded_status_codes' => [422],
+        ]);
+
+        \SalvatoreCervone\LogOperations\Models\OperationRule::create([
+            'type' => 'route',
+            'target' => 'api/test-validation-route',
+            'http_methods' => ['POST'],
+            'stack_level' => 'core',
+            'is_active' => true,
+        ]);
+        app(\SalvatoreCervone\LogOperations\Services\RuleEngine::class)->flushCache();
+
+        Route::middleware(LogOperationsMiddleware::class)->post('/api/test-validation-route', function () {
+            return response()->json(['errors' => ['name' => ['Campo obbligatorio']]], 422);
+        });
+
+        $response = $this->postJson('/api/test-validation-route', []);
+        $response->assertStatus(422);
+
+        // Il codice 422 è escluso da config, quindi NON deve essere loggato
+        $this->assertDatabaseMissing('log_operazioni', [
+            'rotta' => '/api/test-validation-route',
+        ]);
+    }
+
+    public function test_status_code_is_logged_when_removed_from_excluded_status_codes(): void
+    {
+        config([
+            'logoperations.mode' => 'selective',
+            'logoperations.excluded_status_codes' => [], // nessun codice escluso
+        ]);
+
+        \SalvatoreCervone\LogOperations\Models\OperationRule::create([
+            'type' => 'route',
+            'target' => 'api/test-validation-route-allowed',
+            'http_methods' => ['POST'],
+            'stack_level' => 'core',
+            'is_active' => true,
+        ]);
+        app(\SalvatoreCervone\LogOperations\Services\RuleEngine::class)->flushCache();
+
+        Route::middleware(LogOperationsMiddleware::class)->post('/api/test-validation-route-allowed', function () {
+            return response()->json(['errors' => ['name' => ['Campo obbligatorio']]], 422);
+        });
+
+        $response = $this->postJson('/api/test-validation-route-allowed', []);
+        $response->assertStatus(422);
+
+        // Ora che 422 non è tra gli esclusi, deve essere loggato
+        $this->assertDatabaseHas('log_operazioni', [
+            'rotta' => '/api/test-validation-route-allowed',
+            'codicehttp' => 422,
+        ]);
+    }
 }

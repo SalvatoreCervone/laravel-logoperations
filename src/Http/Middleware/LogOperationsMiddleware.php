@@ -401,6 +401,16 @@ class LogOperationsMiddleware
         // Valutazione regole dinamiche Zero-Code
         $ruleEvaluation = $this->ruleEngine->evaluateRequest($request);
 
+        // Verifica codici di stato esclusi da configurazione (es. 422 di default):
+        // La blacklist dei codici esclusi ha sempre la precedenza assoluta sul tracciamento delle rotte.
+        // Solo una sessione investigativa live su uno specifico utente (is_user_monitored) la bypassa.
+        $excludedCodes = config('logoperations.excluded_status_codes', []);
+        if (in_array($statusCode, $excludedCodes)) {
+            if (!($ruleEvaluation['is_user_monitored'] ?? false)) {
+                return false;
+            }
+        }
+
         // Se una regola dinamica (o sessione utente live) è attiva, forza il log
         if ($ruleEvaluation['should_log']) {
             return true;
@@ -428,13 +438,6 @@ class LogOperationsMiddleware
             if (!$hasExplicitMiddleware && !$catchUncaughtError) {
                 return false;
             }
-        }
-
-        // Altrimenti applica i filtri di configurazione standard:
-        // Verifica codici di stato esclusi
-        $excludedCodes = config('logoperations.excluded_status_codes', []);
-        if (in_array($statusCode, $excludedCodes)) {
-            return false;
         }
 
         // Verifica verbi HTTP consentiti (il safety net per crash 500 bypassa il filtro sui verbi)
