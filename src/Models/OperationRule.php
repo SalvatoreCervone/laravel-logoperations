@@ -118,9 +118,7 @@ class OperationRule extends Model
 
         if (str_contains($pattern, '{')) {
             $regex = preg_quote($pattern, '#');
-            // Gestione parametri opzionali /{param?}
-            $regex = preg_replace('/\/\\\{[a-zA-Z0-9_]+\\\\\?\\\}/', '(?:/[^/]+)?', $regex);
-            // Gestione parametri obbligatori {param}
+            $regex = preg_replace('/\\\{[a-zA-Z0-9_]+\\\?\\\}/', '(?:/[^/]+)?', $regex);
             $regex = preg_replace('/\\\{[a-zA-Z0-9_]+\\\}/', '[^/]+', $regex);
             if (preg_match('#^' . $regex . '$#i', $cleanUri)) {
                 return true;

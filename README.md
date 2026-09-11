@@ -22,6 +22,12 @@ Pacchetto Composer Laravel per il **tracciamento, monitoraggio e analisi delle o
 - 📖 **Storyboard del Record (Timeline di Vita & Audit Trail)**:
   - Tracciamento cronologico e deterministico del ciclo di vita dei modelli Eloquent (`Order`, `Invoice`, `Ticket`, ecc.) tramite Route Model Binding e trait `HasOperationLogs`.
   - Componente Vue autonomo `<LogStoryboard />` e API REST dedicate per visualizzare l'intera storia di un'entità con classificazione eventi (`create`, `update`, `delete`, `checkpoint`, `error`).
+- 🧩 **Tracciamento Multi-Soggetto con Auto-Discovery Eloquent**:
+  - Intercettazione automatica dei modelli Eloquent (`created`, `updated`, `deleted`) toccati durante una singola richiesta o operazione complessa.
+  - **Architettura Relazionale Indicizzata (`log_operazioni_soggetti`)**: 1 sola riga master per richiesta HTTP e 1 riga per ciascuna entità toccata, salvate in modo cumulativo con una **singola query `INSERT` bulk** (zero overhead anche su 50 o 100+ entità).
+  - **Filtro Core Application**: isola solo i modelli del namespace applicativo (`App\Models\*`), escludendo tabelle pivot (`Pivot`) e componenti interni di sistema.
+  - **Storyboard Bidirezionale**: se un'operazione tocca un Ordine, una Fattura e un Utente, l'evento compare nella timeline di vita di **ciascuna delle 3 entità** (`$model->storyboard()`).
+  - **UI con Nested a 5**: visualizzazione pulita nel modal di dettaglio con badge colorati per azione (`created`, `updated`, `deleted`) ed espansione a fisarmonica (*"Mostra tutti i N record..."*).
 - 🎛️ **Centro di Controllo Zero-Code (Tracking Studio)**:
   - 🗺️ **Studio Rotte**: scansione automatica delle rotte web e API con attivazione/disattivazione permanente a 1 click (ON/OFF) e selezione del livello di dettaglio.
   - ⚙️ **Studio Funzioni & Dynamic Proxy**: scansione delle classi di servizio in `app/` e intercettazione dei metodi con **piena compatibilità di tipo per la Dependency Injection** (`ProxyClassGenerator`).
@@ -78,6 +84,7 @@ php artisan migrate
 Verranno create le tabelle:
 - `log_operazioni`: archivio storico con supporto polimorfico (`user` e `subject`) e indice composito per la paginazione `(dataoperazione, id)`.
 - `log_operazioni_regole`: regole dinamiche configurate da interfaccia per rotte, metodi e sessioni utente.
+- `log_operazioni_soggetti`: tabella relazionale per il tracciamento dei modelli multipli toccati durante una richiesta (`log_id`, `subject_type`, `subject_id`, `action`, `created_at`) con indici ottimizzati per ricerche e Storyboard.
 
 ---
 
@@ -104,6 +111,15 @@ return [
     // --------------------------------------------------------------------------
     // Tabella principale per i log operativi, errori e Storyboard polimorfica
     'table_name' => env('LOG_OPERATIONS_TABLE', 'log_operazioni'),
+
+    // Tabella per i soggetti multipli collegati (Auto-Discovery Eloquent)
+    'subjects_table_name' => env('LOG_OPERATIONS_SUBJECTS_TABLE_NAME', 'log_operazioni_soggetti'),
+
+    // Auto-Discovery globale degli eventi Eloquent durante le richieste monitorate
+    'auto_discover_subjects' => env('LOG_OPERATIONS_AUTO_DISCOVER_SUBJECTS', true),
+
+    // Namespace dei modelli di dominio da monitorare (esclude pivot e framework)
+    'models_namespace' => env('LOG_OPERATIONS_MODELS_NAMESPACE', 'App\\Models'),
 
     // Tabella per la memorizzazione delle regole del Tracking Studio (rotte, proxy metodi, sessioni)
     'rules_table_name' => env('LOG_OPERATIONS_RULES_TABLE', 'log_operazioni_regole'),
@@ -532,7 +548,27 @@ $order->logStep('Autorizzazione pagamento ricevuta da Stripe', ['payment_id' => 
 $timeline = $order->storyboard();
 ```
 
-### 4. Componente Vue Dedicato:
+### 4. Tracciamento Multi-Modello & Operazioni Complesse (Auto-Discovery Eloquent):
+Quando un'operazione di business tocca **più entità distinte** all'interno della stessa richiesta HTTP (es. durante un checkout che crea un ordine, genera una fattura e aggiorna il profilo utente), LogOperations le intercetta tutte automaticamente:
+
+```php
+// In un controller o service monitorato:
+$order = Order::create([...]);
+$invoice = Invoice::create(['order_id' => $order->id, ...]);
+$customer->update(['ultimo_acquisto' => now()]);
+```
+
+- Viene registrato **1 solo record master** in `log_operazioni` per la richiesta HTTP.
+- Vengono inserite le righe relazionali in `log_operazioni_soggetti` con una **singola query `INSERT` bulk**.
+- **La storia è condivisa e bidirezionale**:
+  ```php
+  $order->storyboard();    // Mostra l'evento di checkout
+  $invoice->storyboard();  // Mostra lo stesso evento di checkout!
+  $customer->storyboard(); // Mostra lo stesso evento di checkout!
+  ```
+  Non sei obbligato ad aprire la storia del primo modello per sapere che ne hai toccati altri due: ciascun modello possiede l'evento nella propria timeline.
+
+### 5. Componente Vue Dedicato:
 ```vue
 <script setup>
 import { LogStoryboard } from './vendor/logoperations'
@@ -831,7 +867,12 @@ Apri il browser su:
 
 ## 📦 Versioning & Changelog
 
-- **v1.3.0** *(Raccomandata)*:
+- **v1.4.0** *(Multi-Subject Auto-Discovery)*:
+  - **Architettura Multi-Soggetto con Auto-Discovery Eloquent**: Intercettazione automatica degli eventi di modello (`created`, `updated`, `deleted`) per le richieste tracciate, con isolamento dei modelli core (`App\Models\*`).
+  - **Tabella Relazionale Indicizzata (`log_operazioni_soggetti`)**: 1 sola riga master per richiesta HTTP e persistenza cumulativa con singola query `INSERT` bulk.
+  - **Storyboard Bidirezionale**: `$model->storyboard()` include automaticamente tutte le operazioni che hanno modificato l'entità, sia come soggetto primario che secondario.
+  - **Visualizzazione UI Nested a 5**: Visualizzazione nel modal di dettaglio con badge colorati per azione (`created`, `updated`, `deleted`) ed espansione a fisarmonica per grandi volumi di record.
+- **v1.3.0**:
   - **Default Architetturale Selettivo (Scenario A)**: `mode` predefinito su `'selective'`, `allowed_methods` su `['*']` e `stack_trace.only_on_error` su `true`. Massima pulizia del DB e zero sovraccarico per tipologiche e consultazioni ordinarie.
   - **Supporto FQCN Middleware**: Supporto completo a `Route::middleware(LogOperationsMiddleware::class)` oltre ai classici alias stringa `'log.operations'` / `'logoperations'`.
   - **Paracadute Errori 500 (Safety Net)**: Aggiunta opzione `log_uncaught_errors` (default: `true`) che intercetta e registra automaticamente con full stack trace qualsiasi crash `HTTP 500` anche su rotte non esplicitamente monitorate.

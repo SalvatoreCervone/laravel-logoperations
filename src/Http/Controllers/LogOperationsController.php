@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use SalvatoreCervone\LogOperations\Models\OperationLog;
+use SalvatoreCervone\LogOperations\Models\OperationSubject;
 use SalvatoreCervone\LogOperations\Services\LogExportService;
 use SalvatoreCervone\LogOperations\Http\Controllers\Concerns\AuthorizesLogOperations;
 
@@ -197,13 +198,34 @@ class LogOperationsController extends Controller
      */
     public function show(int $id): JsonResponse
     {
-        $log = OperationLog::findOrFail($id);
+        $log = OperationLog::with('subjects')->findOrFail($id);
         $enriched = $this->enrichWithUserData($log);
+
+        // Modelli toccati raggruppati per classe
+        $touchedModels = [];
+        if ($log->subjects->isNotEmpty()) {
+            $touchedModels = $log->subjects
+                ->groupBy('subject_type')
+                ->map(function ($items, $type) {
+                    return [
+                        'type' => $type,
+                        'label' => class_basename($type),
+                        'count' => $items->count(),
+                        'items' => $items->map(fn ($s) => [
+                            'id' => $s->subject_id,
+                            'action' => $s->action,
+                        ])->values()->all(),
+                    ];
+                })
+                ->values()
+                ->all();
+        }
 
         return response()->json([
             'data' => $enriched,
             'core_stack' => $log->core_stack,
             'full_stack' => $log->full_stack,
+            'touched_models' => $touchedModels,
         ]);
     }
 
@@ -264,16 +286,38 @@ class LogOperationsController extends Controller
         $logs = $query->orderBy('dataoperazione', $order)
             ->orderBy('id', $order)
             ->limit($limit)
+            ->with('subjects')
             ->get();
 
         $events = $logs->map(function ($log) {
             $enriched = $this->enrichWithUserData($log);
             $classification = $this->classifyEvent($log);
 
+            // Includi i modelli toccati dalla tabella relazionale
+            $touchedModels = [];
+            if ($log->relationLoaded('subjects') && $log->subjects->isNotEmpty()) {
+                $touchedModels = $log->subjects
+                    ->groupBy('subject_type')
+                    ->map(function ($items, $type) {
+                        return [
+                            'type' => $type,
+                            'label' => class_basename($type),
+                            'count' => $items->count(),
+                            'items' => $items->map(fn ($s) => [
+                                'id' => $s->subject_id,
+                                'action' => $s->action,
+                            ])->values()->all(),
+                        ];
+                    })
+                    ->values()
+                    ->all();
+            }
+
             return array_merge($enriched, [
                 'classification' => $classification,
                 'core_stack' => $log->core_stack,
                 'full_stack' => $log->full_stack,
+                'touched_models' => $touchedModels,
             ]);
         });
 
@@ -317,22 +361,39 @@ class LogOperationsController extends Controller
      */
     public function subjects(): JsonResponse
     {
-        $subjects = OperationLog::query()
+        // Soggetti primari dalla tabella principale
+        $primarySubjects = OperationLog::query()
             ->whereNotNull('subject_type')
             ->whereNotNull('subject_id')
             ->select(['subject_type', 'subject_id'])
             ->distinct()
-            ->limit(50)
+            ->limit(100)
             ->get()
-            ->map(function ($item) {
-                return [
-                    'type' => $item->subject_type,
-                    'id' => (string) $item->subject_id,
-                    'label' => class_basename($item->subject_type) . ' #' . $item->subject_id,
-                ];
-            });
+            ->map(fn ($item) => $item->subject_type . '::' . $item->subject_id);
 
-        return response()->json($subjects);
+        // Soggetti dalla tabella relazionale
+        $relationalSubjects = OperationSubject::query()
+            ->select(['subject_type', 'subject_id'])
+            ->distinct()
+            ->limit(100)
+            ->get()
+            ->map(fn ($item) => $item->subject_type . '::' . $item->subject_id);
+
+        // Unione e deduplicazione
+        $allSubjects = $primarySubjects->merge($relationalSubjects)
+            ->unique()
+            ->take(50)
+            ->map(function ($key) {
+                [$type, $id] = explode('::', $key, 2);
+                return [
+                    'type' => $type,
+                    'id' => $id,
+                    'label' => class_basename($type) . ' #' . $id,
+                ];
+            })
+            ->values();
+
+        return response()->json($allSubjects);
     }
 
     /**

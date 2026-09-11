@@ -1417,6 +1417,47 @@
                         </button>
                     </div>
 
+                    <!-- Modelli Coinvolti nell'Operazione (Multi-Subject) -->
+                    <div v-if="activeLog.touched_models && activeLog.touched_models.length > 0" style="background: var(--surface-secondary); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary);">
+                                <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                            </svg>
+                            <strong style="color: var(--text-primary); font-size: 12.5px;">Modelli Coinvolti nell'Operazione</strong>
+                            <span class="badge" style="background: var(--primary-subtle); color: #93c5fd; border: 1px solid var(--primary-border); font-size: 11px;">@{{ activeLog.touched_models.reduce((sum, g) => sum + g.count, 0) }} entità</span>
+                        </div>
+                        <div v-for="(group, gIdx) in activeLog.touched_models" :key="gIdx" style="margin-bottom: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                                <span style="font-weight: 600; font-size: 12px; color: var(--text-secondary);">@{{ group.label }}</span>
+                                <span style="font-size: 11px; color: var(--text-subtle);">(@{{ group.count }} record)</span>
+                            </div>
+                            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                                <template v-for="(item, iIdx) in (expandedModelGroups[gIdx] ? group.items : group.items.slice(0, 5))" :key="iIdx">
+                                    <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 11px; border-radius: 4px; cursor: pointer;"
+                                          :style="{
+                                              background: item.action === 'created' ? 'var(--success-subtle)' : item.action === 'deleted' ? 'var(--danger-subtle)' : 'var(--warning-subtle)',
+                                              border: '1px solid ' + (item.action === 'created' ? 'var(--success-border)' : item.action === 'deleted' ? 'var(--danger-border)' : 'var(--warning-border)'),
+                                              color: item.action === 'created' ? 'var(--success-text)' : item.action === 'deleted' ? 'var(--danger-text)' : 'var(--warning-text)'
+                                          }"
+                                          @click="openStoryboardForSubject(group.type, item.id)">
+                                        <span style="font-weight: 600;">#@{{ item.id }}</span>
+                                        <span style="opacity: 0.7; font-size: 10px; text-transform: uppercase;">@{{ item.action }}</span>
+                                    </span>
+                                </template>
+                                <button v-if="!expandedModelGroups[gIdx] && group.items.length > 5"
+                                        @click="expandedModelGroups[gIdx] = true"
+                                        style="background: var(--surface-tertiary); border: 1px solid var(--border-strong); color: var(--primary); font-size: 11px; padding: 2px 10px; border-radius: 4px; cursor: pointer;">
+                                    Mostra tutti i @{{ group.count }} record...
+                                </button>
+                                <button v-if="expandedModelGroups[gIdx] && group.items.length > 5"
+                                        @click="expandedModelGroups[gIdx] = false"
+                                        style="background: var(--surface-tertiary); border: 1px solid var(--border-strong); color: var(--text-muted); font-size: 11px; padding: 2px 10px; border-radius: 4px; cursor: pointer;">
+                                    Mostra solo i primi 5
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div v-if="activeLog.error" style="background: var(--danger-subtle); border: 1px solid var(--danger-border); border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; color: var(--danger-text);">
                         <strong>Errore:</strong>
                         <pre style="margin-top: 6px; font-family: 'JetBrains Mono', monospace; font-size: 12px; white-space: pre-wrap;">@{{ activeLog.error }}</pre>
@@ -1486,6 +1527,7 @@
             const activeLog = ref(null);
             const modalTab = ref('overview');
             const modalStackView = ref('core');
+            const expandedModelGroups = ref({});
 
             // Tracking Studio State
             const routes = ref([]);
@@ -1739,7 +1781,9 @@
                         ...detailData,
                         core_stack: detail.core_stack || (detail.data && detail.data.core_stack) || detailData.core_stack,
                         full_stack: detail.full_stack || (detail.data && detail.data.full_stack) || detailData.full_stack,
+                        touched_models: detail.touched_models || (detail.data && detail.data.touched_models) || [],
                     };
+                    expandedModelGroups.value = {};
                     modalTab.value = 'overview';
                     modalStackView.value = 'core';
                 } catch (e) {
@@ -2215,7 +2259,7 @@
             return {
                 currentTab, logs, stats, loading, currentPage, perPage, perPageOptions, pagination, visiblePages,
                 quickFilter, filterText, filterVerb, filterUser, filterDateFrom, filterDateTo, activeLog, modalTab,
-                modalStackView, displayedStackFrames,
+                modalStackView, displayedStackFrames, expandedModelGroups,
                 // Studio
                 routes, routeFilter, routeVerbFilter, routeControllerFilter, routeTrackedFilter, uniqueControllers,
                 selectedRouteKeys, bulkStackLevel, isAllSelected, isSomeSelected, toggleSelectAll, resetRouteFilters,

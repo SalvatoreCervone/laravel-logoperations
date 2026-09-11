@@ -119,11 +119,52 @@ class LogOperationsServiceProvider extends ServiceProvider
             ]);
         }
 
+        // Auto-Discovery Soggetti: listener globali sugli eventi Eloquent
+        if (config('logoperations.auto_discover_subjects', true)) {
+            $this->registerEloquentSubjectListeners();
+        }
+
         // Attivazione dei proxy per i metodi/servizi tracciati dinamicamente
         try {
             $this->app->make(\SalvatoreCervone\LogOperations\Services\MethodInterceptor::class)->registerActiveInterceptors();
         } catch (\Throwable $e) {
             // Ignora se il database o le tabelle non sono ancora pronte durante migrazioni iniziali
+        }
+    }
+
+    /**
+     * Registra i listener globali sugli eventi Eloquent (created, updated, deleted).
+     *
+     * I listener catturano automaticamente tutti i modelli toccati durante una
+     * richiesta HTTP tracciata. Il filtraggio (namespace, pivot, pacchetto interno)
+     * è delegato a LogOperationsManager::recordTouchedModel().
+     */
+    protected function registerEloquentSubjectListeners(): void
+    {
+        $events = $this->app->make(\Illuminate\Contracts\Events\Dispatcher::class);
+
+        foreach (['created', 'updated', 'deleted'] as $action) {
+            $events->listen("eloquent.{$action}: *", function (string $event, array $data) use ($action) {
+                try {
+                    if (!$this->app->bound(LogOperationsManager::class)) {
+                        return;
+                    }
+
+                    $manager = $this->app->make(LogOperationsManager::class);
+
+                    // Registra solo durante richieste attivamente tracciate
+                    if (!$manager->isRequestActive()) {
+                        return;
+                    }
+
+                    $model = $data[0] ?? null;
+                    if ($model instanceof \Illuminate\Database\Eloquent\Model) {
+                        $manager->recordTouchedModel($model, $action);
+                    }
+                } catch (\Throwable $e) {
+                    // Il tracciamento non deve mai bloccare gli eventi dell'applicazione
+                }
+            });
         }
     }
 }

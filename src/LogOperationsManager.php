@@ -42,6 +42,17 @@ class LogOperationsManager
      */
     protected ?\Illuminate\Database\Eloquent\Model $subject = null;
 
+    /**
+     * Modelli Eloquent toccati (created/updated/deleted) durante la richiesta corrente.
+     * Chiave: "App\Models\Foo::42" (deduplicazione O(1)).
+     */
+    protected array $touchedModels = [];
+
+    /**
+     * Flag che indica se la richiesta corrente è attivamente tracciata.
+     */
+    protected bool $requestActive = false;
+
     protected PrivacyManager $privacyManager;
 
     public function __construct(
@@ -66,6 +77,96 @@ class LogOperationsManager
     public function getSubject(): ?\Illuminate\Database\Eloquent\Model
     {
         return $this->subject;
+    }
+
+    /**
+     * Contrassegna la richiesta corrente come attiva (la rotta è tracciata).
+     */
+    public function activateRequest(): void
+    {
+        $this->requestActive = true;
+    }
+
+    /**
+     * Verifica se la richiesta corrente è contrassegnata come attiva.
+     */
+    public function isRequestActive(): bool
+    {
+        return $this->requestActive;
+    }
+
+    /**
+     * Registra un modello Eloquent toccato durante la richiesta corrente.
+     *
+     * Filtri applicati:
+     * - Namespace applicativo (configurable, default: App\Models)
+     * - Esclusione modelli pivot (Illuminate\Database\Eloquent\Relations\Pivot)
+     * - Esclusione modelli interni del pacchetto (SalvatoreCervone\LogOperations)
+     * - Deduplicazione per chiave "tipo::id"
+     *
+     * @param \Illuminate\Database\Eloquent\Model $model Il modello toccato
+     * @param string $action L'azione Eloquent: 'created', 'updated', 'deleted'
+     */
+    public function recordTouchedModel(\Illuminate\Database\Eloquent\Model $model, string $action): void
+    {
+        $class = get_class($model);
+
+        // Escludi modelli pivot
+        if ($model instanceof \Illuminate\Database\Eloquent\Relations\Pivot) {
+            return;
+        }
+
+        // Escludi modelli interni del pacchetto (OperationLog, OperationSubject, OperationRule)
+        if (str_starts_with($class, 'SalvatoreCervone\\LogOperations\\Models\\')) {
+            return;
+        }
+
+        // Verifica namespace applicativo
+        $allowedNamespace = config('logoperations.models_namespace', 'App\\Models');
+        if (!str_starts_with($class, $allowedNamespace)) {
+            return;
+        }
+
+        $key = $model->getKey();
+        if ($key === null) {
+            return;
+        }
+
+        $deduplicationKey = $class . '::' . $key;
+
+        // Registra solo la prima azione per evitare duplicati
+        if (isset($this->touchedModels[$deduplicationKey])) {
+            return;
+        }
+
+        $this->touchedModels[$deduplicationKey] = [
+            'subject_type' => $model->getMorphClass(),
+            'subject_id' => (string) $key,
+            'action' => $action,
+        ];
+
+        // Auto-assegna il primo modello toccato come soggetto primario
+        if ($this->subject === null) {
+            $this->subject = $model;
+        }
+    }
+
+    /**
+     * Restituisce tutti i modelli toccati durante la richiesta corrente.
+     *
+     * @return array Array di ['subject_type', 'subject_id', 'action']
+     */
+    public function getTouchedModels(): array
+    {
+        return array_values($this->touchedModels);
+    }
+
+    /**
+     * Verifica se ci sono modelli toccati durante la richiesta.
+     */
+    public function hasTouchedModels(): bool
+    {
+        return !empty($this->touchedModels);
     }
 
     /**
@@ -351,6 +452,8 @@ class LogOperationsManager
         $this->context = [];
         $this->tags = [];
         $this->subject = null;
+        $this->touchedModels = [];
+        $this->requestActive = false;
     }
 
     /**

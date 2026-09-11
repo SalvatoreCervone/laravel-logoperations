@@ -94,6 +94,36 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Nome Tabella Soggetti Correlati (Multi-Subject Tracking)
+    |--------------------------------------------------------------------------
+    |
+    | Tabella relazionale per il tracciamento di tutti i modelli Eloquent
+    | toccati (created/updated/deleted) durante una singola richiesta HTTP.
+    | Abilita Storyboard bidirezionale per ogni entità coinvolta.
+    |
+    */
+
+    'subjects_table_name' => env('LOG_OPERATIONS_SUBJECTS_TABLE', 'log_operazioni_soggetti'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Auto-Discovery Soggetti (Modelli Eloquent)
+    |--------------------------------------------------------------------------
+    |
+    | Se abilitato, ascolta automaticamente gli eventi Eloquent (created,
+    | updated, deleted) su tutti i modelli dell'applicazione e li registra
+    | nella tabella soggetti correlati. Solo i modelli il cui namespace
+    | inizia con 'models_namespace' vengono tracciati (esclude pivot,
+    | modelli di sistema e pacchetti vendor).
+    |
+    */
+
+    'auto_discover_subjects' => env('LOG_OPERATIONS_AUTO_DISCOVER_SUBJECTS', true),
+
+    'models_namespace' => env('LOG_OPERATIONS_MODELS_NAMESPACE', 'App\\Models'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Connessione Database Dedicata
     |--------------------------------------------------------------------------
     |

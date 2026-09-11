@@ -4,6 +4,7 @@ namespace SalvatoreCervone\LogOperations\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
@@ -78,6 +79,15 @@ class OperationLog extends Model
     public function subject(): MorphTo
     {
         return $this->morphTo('subject');
+    }
+
+    /**
+     * Relazione ai soggetti collegati (modelli toccati durante la stessa richiesta HTTP).
+     * Ogni riga rappresenta un modello Eloquent created/updated/deleted.
+     */
+    public function subjects(): HasMany
+    {
+        return $this->hasMany(OperationSubject::class, 'log_id');
     }
 
     /*
@@ -188,16 +198,25 @@ class OperationLog extends Model
      */
     public function scopeForSubject(Builder $query, Model|string $subject, int|string|null $id = null): Builder
     {
-        if ($subject instanceof Model) {
-            return $query->where('subject_type', $subject->getMorphClass())
-                         ->where('subject_id', (string) $subject->getKey());
-        }
+        $type = $subject instanceof Model ? $subject->getMorphClass() : $subject;
+        $subjectId = $subject instanceof Model ? (string) $subject->getKey() : ($id !== null ? (string) $id : null);
 
-        $query->where('subject_type', $subject);
-        if ($id !== null) {
-            $query->where('subject_id', (string) $id);
-        }
-        return $query;
+        return $query->where(function (Builder $q) use ($type, $subjectId) {
+            // Soggetto primario (colonne sulla tabella principale)
+            $q->where(function (Builder $primary) use ($type, $subjectId) {
+                $primary->where('subject_type', $type);
+                if ($subjectId !== null) {
+                    $primary->where('subject_id', $subjectId);
+                }
+            })
+            // OPPURE soggetto collegato nella tabella relazionale
+            ->orWhereHas('subjects', function (Builder $rel) use ($type, $subjectId) {
+                $rel->where('subject_type', $type);
+                if ($subjectId !== null) {
+                    $rel->where('subject_id', $subjectId);
+                }
+            });
+        });
     }
 
     /**

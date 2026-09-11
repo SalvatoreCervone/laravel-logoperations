@@ -5,6 +5,9 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Models\Order;
+use App\Models\Invoice;
+use App\Models\OrderItem;
 use App\Services\OrderService;
 use App\Services\PaymentService;
 
@@ -78,6 +81,75 @@ Route::middleware('log.operations')->group(function () {
         }
 
         return response()->json(['success' => false, 'message' => 'Utente non trovato'], 404);
+    });
+
+    // Casistica 6: Operazione Multi-Modello (Auto-Discovery Eloquent: Order + Invoice + User)
+    Route::post('/api/demo/multi-model-checkout', function (Request $request) {
+        $count = Order::count() + 1;
+        $order = Order::create([
+            'reference' => 'ORD-2026-' . str_pad($count, 3, '0', STR_PAD_LEFT),
+            'customer_name' => $request->input('customer_name', 'Acme Corp Spa'),
+            'amount' => 450.00,
+            'status' => 'confirmed',
+        ]);
+
+        $invoice = Invoice::create([
+            'order_id' => $order->id,
+            'invoice_number' => 'INV-2026-' . str_pad($count, 3, '0', STR_PAD_LEFT),
+            'total' => 450.00,
+            'status' => 'issued',
+        ]);
+
+        $user = User::first();
+        if ($user) {
+            $user->touch();
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Operazione Multi-Modello completata! Toccati 3 modelli: Order #{$order->id}, Invoice #{$invoice->id}, User #{$user?->id}.",
+            'order_id' => $order->id,
+            'invoice_id' => $invoice->id,
+            'user_id' => $user?->id,
+        ]);
+    });
+
+    // Casistica 7: Ordine con 10 Elementi Connessi (Test visualizzazione Nested-5)
+    Route::post('/api/demo/orders-with-10-items', function (Request $request) {
+        $count = Order::count() + 1;
+        $order = Order::create([
+            'reference' => 'ORD-BULK-' . str_pad($count, 3, '0', STR_PAD_LEFT),
+            'customer_name' => $request->input('customer_name', 'Fornitore Elettronica Spa'),
+            'amount' => 1250.00,
+            'status' => 'processing',
+        ]);
+
+        $items = [];
+        $prodotti = [
+            'Monitor 27" 4K', 'Tastiera Meccanica RGB', 'Mouse Ergonomico',
+            'Cuffie Wireless ANC', 'Docking Station USB-C', 'Webcam 1080p Pro',
+            'Stand Portatile Alluminio', 'Cavo Thunderbolt 4', 'Tappetino XXL',
+            'Alimentatore GaN 100W'
+        ];
+
+        foreach ($prodotti as $prodotto) {
+            $item = OrderItem::create([
+                'order_id' => $order->id,
+                'product_name' => $prodotto,
+                'quantity' => rand(1, 3),
+                'unit_price' => rand(25, 250) + 0.99,
+            ]);
+            $items[] = $item->id;
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => "Creato Ordine #{$order->id} con 10 elementi OrderItem connessi!",
+            'order_id' => $order->id,
+            'order_reference' => $order->reference,
+            'items_count' => count($items),
+            'item_ids' => $items,
+        ]);
     });
 
     /*

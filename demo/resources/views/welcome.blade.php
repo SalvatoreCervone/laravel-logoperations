@@ -919,6 +919,28 @@
                 </button>
 
                 <button
+                    class="sim-btn"
+                    style="background: #0284c7; color: #fff;"
+                    :disabled="simulating"
+                    @click="runSimulation('multimodel')"
+                    data-tooltip="<strong>Simula Operazione Multi-Modello (Auto-Discovery):</strong><br>Esegue una richiesta che crea Order, Invoice e aggiorna User. LogOperations registra 1 operazione principale e collega 3 modelli distinti nella tabella relazionale."
+                    title="Simula Operazione Multi-Modello con Auto-Discovery (Order + Invoice + User)"
+                >
+                    🧩 Multi-Modello (Auto-Discovery)
+                </button>
+
+                <button
+                    class="sim-btn"
+                    style="background: #0d9488; color: #fff;"
+                    :disabled="simulating"
+                    @click="runSimulation('bulk10')"
+                    data-tooltip="<strong>Simula Ordine con 10 Articoli Connessi (Nested-5):</strong><br>Crea 1 Order e 10 OrderItem collegati in un'unica richiesta HTTP. Dimostra la visualizzazione compatta 'nested a 5' con pulsante per espandere tutti i record."
+                    title="Simula Ordine con 10 OrderItem connessi (Test visualizzazione Nested-5)"
+                >
+                    📦 Simula 10 Articoli (Nested-5)
+                </button>
+
+                <button
                     v-if="selectedOrderId"
                     class="sim-btn"
                     style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid #6366f1;"
@@ -1729,6 +1751,49 @@
                     </button>
                 </div>
 
+                <!-- Modelli Coinvolti nell'Operazione (Multi-Subject) -->
+                <div v-if="activeModalLog.touched_models && activeModalLog.touched_models.length > 0" 
+                     style="margin: 14px 20px 0; background: var(--surface-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 14px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--primary);">
+                            <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                        </svg>
+                        <strong style="color: var(--text-main); font-size: 13px;">Modelli Coinvolti nell'Operazione (Auto-Discovery)</strong>
+                        <span class="badge" style="background: var(--primary-subtle); color: #93c5fd; border: 1px solid var(--primary-border); font-size: 11px;">@{{ activeModalLog.touched_models.reduce((sum, g) => sum + g.count, 0) }} entità</span>
+                    </div>
+                    <div v-for="(group, gIdx) in activeModalLog.touched_models" :key="gIdx" style="margin-bottom: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <span style="font-weight: 600; font-size: 12px; color: var(--text-secondary);">@{{ group.label }}</span>
+                            <span style="font-size: 11px; color: var(--text-muted);">(@{{ group.count }} record)</span>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                            <template v-for="(item, iIdx) in (expandedModelGroups[gIdx] ? group.items : group.items.slice(0, 5))" :key="iIdx">
+                                <span style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; font-size: 11px; border-radius: 4px; cursor: pointer;"
+                                      :style="{
+                                          background: item.action === 'created' ? 'var(--success-subtle)' : item.action === 'deleted' ? 'var(--danger-subtle)' : 'var(--warning-subtle)',
+                                          border: '1px solid ' + (item.action === 'created' ? 'var(--success-border)' : item.action === 'deleted' ? 'var(--danger-border)' : 'var(--warning-border)'),
+                                          color: item.action === 'created' ? 'var(--success-text)' : item.action === 'deleted' ? 'var(--danger-text)' : 'var(--warning-text)'
+                                      }"
+                                      @click="openStoryboardForSubject(group.type, item.id); activeModalLog = null"
+                                      title="Clicca per aprire la Storyboard di questa entità">
+                                    <span style="font-weight: 700;">#@{{ item.id }}</span>
+                                    <span style="opacity: 0.8; font-size: 10px; text-transform: uppercase;">@{{ item.action }}</span>
+                                </span>
+                            </template>
+                            <button v-if="!expandedModelGroups[gIdx] && group.items.length > 5"
+                                    @click="expandedModelGroups[gIdx] = true"
+                                    style="background: var(--surface-hover); border: 1px solid var(--border-strong); color: var(--primary); font-size: 11px; padding: 2px 10px; border-radius: 4px; cursor: pointer;">
+                                Mostra tutti i @{{ group.count }} record...
+                            </button>
+                            <button v-if="expandedModelGroups[gIdx] && group.items.length > 5"
+                                    @click="expandedModelGroups[gIdx] = false"
+                                    style="background: var(--surface-hover); border: 1px solid var(--border-strong); color: var(--text-muted); font-size: 11px; padding: 2px 10px; border-radius: 4px; cursor: pointer;">
+                                Mostra solo i primi 5
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="modal-content">
                     <h4 style="margin-bottom: 8px;">Parametri Registrati (con protezione dati sensibili):</h4>
                     <pre class="stack-tree" style="margin-bottom: 16px;">@{{ activeModalLog.parametri ? JSON.stringify(activeModalLog.parametri, null, 2) : 'Nessun parametro inviato (richiesta senza body o query string)' }}</pre>
@@ -1820,6 +1885,7 @@
                 const lastCreatedOrderId = ref(null);
                 const routeFilter = ref('');
                 const activeModalLog = ref(null);
+                const expandedModelGroups = ref({});
 
                 // Paginazione (Fase 8)
                 const currentPage = ref(1);
@@ -2134,12 +2200,34 @@
                         } else if (type === 'slow') {
                             endpoint = '/api/demo/slow-request';
                             method = 'GET';
+                        } else if (type === 'multimodel') {
+                            endpoint = '/api/demo/multi-model-checkout';
+                            headers['Content-Type'] = 'application/json';
+                            body = JSON.stringify({
+                                customer_name: 'Acme Enterprise Spa'
+                            });
+                        } else if (type === 'bulk10') {
+                            endpoint = '/api/demo/orders-with-10-items';
+                            headers['Content-Type'] = 'application/json';
+                            body = JSON.stringify({
+                                customer_name: 'Fornitore Elettronica Spa'
+                            });
                         }
 
                         const res = await fetch(endpoint, { method, headers, body });
                         const data = await res.json().catch(() => ({}));
 
-                        if (type === 'order' && data.order) {
+                        if (type === 'bulk10' && data.order_id) {
+                            lastCreatedOrderId.value = data.order_id;
+                            selectedOrderId.value = data.order_id;
+                            lastSimResult.value = `✅ Creato ${data.order_reference} con 10 OrderItem connessi (Nested-5)!`;
+                            await fetchOrders();
+                        } else if (type === 'multimodel' && data.order_id) {
+                            lastCreatedOrderId.value = data.order_id;
+                            selectedOrderId.value = data.order_id;
+                            lastSimResult.value = `✅ Toccati 3 Modelli (Order #${data.order_id}, Invoice #${data.invoice_id}, User #${data.user_id})!`;
+                            await fetchOrders();
+                        } else if (type === 'order' && data.order) {
                             lastCreatedOrderId.value = data.order.id;
                             selectedOrderId.value = data.order.id;
                             lastSimResult.value = `✅ Creato ${data.order.reference} (€${data.totale}) con Storyboard!`;
@@ -2242,9 +2330,22 @@
                     await fetchStudioData();
                 }
 
-                function openLogDetail(log) {
-                    activeModalLog.value = log;
-                    const hasCore = log.stack_trace && log.stack_trace.some(f => f.is_core);
+                async function openLogDetail(log) {
+                    try {
+                        const res = await fetch(`/api/logoperations/${log.id}`, { headers: { 'Accept': 'application/json' } });
+                        const detail = await res.json();
+                        const detailData = detail.data || log;
+                        activeModalLog.value = {
+                            ...detailData,
+                            core_stack: detail.core_stack || detailData.core_stack,
+                            full_stack: detail.full_stack || detailData.full_stack,
+                            touched_models: detail.touched_models || [],
+                        };
+                    } catch (e) {
+                        activeModalLog.value = log;
+                    }
+                    expandedModelGroups.value = {};
+                    const hasCore = activeModalLog.value.stack_trace && activeModalLog.value.stack_trace.some(f => f.is_core);
                     stackViewMode.value = hasCore ? 'core' : 'full';
                 }
 
@@ -2438,6 +2539,7 @@
                     currentTab, logs, routes, classes, activeSessions, usersList, selectedUserId,
                     targetUserId, userDuration, simulating, lastSimResult, routeFilter,
                     filteredRoutes, activeModalLog, stackViewMode, displayedStackTrace, hasVendorFrames, stats,
+                    expandedModelGroups,
                     activeQuickFilter, filterStatus, filterUser, filterVerb, filterText,
                     filterSlow, filterUnfinishedTx, filterOnlyErrors, hasActiveFilters,
                     setQuickFilter, onFilterChange, resetAllFilters, debounceFetchLogs,

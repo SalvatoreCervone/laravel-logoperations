@@ -64,8 +64,8 @@ trait HasOperationLogs
     public function storyboard(?int $limit = null, string $order = 'asc'): Collection
     {
         $dir = strtolower($order) === 'desc' ? 'desc' : 'asc';
-        $query = $this->operationLogs()
-            ->with('user')
+        $query = OperationLog::forSubject($this)
+            ->with(['user', 'subjects'])
             ->orderBy('dataoperazione', $dir)
             ->orderBy('id', $dir);
 
