@@ -14,6 +14,8 @@ class MigrationConnectionTest extends TestCase
             __DIR__ . '/../../database/migrations/2026_01_01_000002_create_log_operazioni_regole_table.php',
             __DIR__ . '/../../database/migrations/2026_01_01_000003_add_subject_to_log_operazioni_table.php',
             __DIR__ . '/../../database/migrations/2026_01_01_000004_add_pagination_index_to_log_operazioni_table.php',
+.            __DIR__ . '/../../database/migrations/2026_01_01_000005_widen_controllermethod_column.php',
+            __DIR__ . '/../../database/migrations/2026_01_01_000006_create_log_operazioni_soggetti_table.php',
         ];
 
         // Default: null
