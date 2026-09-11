@@ -568,7 +568,52 @@ $customer->update(['ultimo_acquisto' => now()]);
   ```
   Non sei obbligato ad aprire la storia del primo modello per sapere che ne hai toccati altri due: ciascun modello possiede l'evento nella propria timeline.
 
-### 5. Componente Vue Dedicato:
+### 5. Propagazione Storyboard ai Modelli Padre (`$logParents`):
+In molte architetture di dominio, le richieste HTTP creano o modificano **record figli o di associazione** (es. `AnagraficaUfficio`, `OrderItem`, `TicketMessage`) senza eseguire un `UPDATE` sul modello genitore (`Anagrafica`, `Order`, `Ticket`).
+
+Dal punto di vista dell'utente finale o dell'auditor, quell'operazione appartiene a pieno titolo alla storia dell'entità principale (es. la persona o l'ordine).
+
+Per fare in modo che la Storyboard del modello padre riceva automaticamente l'evento, basta dichiarare nel modello figlio la proprietà `$logParents`:
+
+```php
+use Illuminate\Database\Eloquent\Model;
+use SalvatoreCervone\LogOperations\Traits\HasOperationLogs;
+
+class AnagraficaUfficio extends Model
+{
+    use HasOperationLogs;
+
+    // Specifica le relazioni 'belongsTo' genitore da collegare alla Storyboard:
+    protected array $logParents = ['anagrafica', 'ufficio'];
+
+    public function anagrafica()
+    {
+        return $this->belongsTo(Anagrafica::class);
+    }
+
+    public function ufficio()
+    {
+        return $this->belongsTo(Ufficio::class);
+    }
+}
+```
+
+Quando `AnagraficaUfficio` viene salvato:
+1. `LogOperations` risolve in modo sicuro le relazioni definite in `$logParents`.
+2. Aggiunge i modelli genitore (es. `Anagrafica #3674` e `Ufficio #7891`) come entità collegate con azione `associated`.
+3. Aprendo la Storyboard di **`Anagrafica #3674`**, l'operazione compare all'istante nella sua timeline!
+
+> [!TIP]
+> **Configurazione Centralizzata Alternativa**:  
+> Se non vuoi modificare la classe del modello, puoi definire la stessa mappatura in `config/logoperations.php`:
+> ```php
+> 'parent_relations' => [
+>     App\Models\AnagraficaUfficio::class => ['anagrafica', 'ufficio'],
+>     App\Models\OrderItem::class => ['order'],
+> ],
+> ```
+
+### 6. Componente Vue Dedicato:
 ```vue
 <script setup>
 import { LogStoryboard } from './vendor/logoperations'

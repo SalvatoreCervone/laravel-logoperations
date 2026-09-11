@@ -149,6 +149,83 @@ class LogOperationsManager
         if ($this->subject === null) {
             $this->subject = $model;
         }
+
+        // Risolve e collega eventuali modelli padre dichiarati nel modello o in configurazione
+        $this->recordParentModels($model, $action);
+    }
+
+    /**
+     * Risolve ed inserisce nei soggetti tracciati i modelli genitore definiti
+     * tramite $logParents nel modello o tramite config('logoperations.parent_relations').
+     *
+     * @param \Illuminate\Database\Eloquent\Model $model Il modello figlio salvato
+     * @param string $childAction L'azione eseguita sul figlio
+     */
+    protected function recordParentModels(\Illuminate\Database\Eloquent\Model $model, string $childAction): void
+    {
+        $parents = [];
+
+        // 1. Risoluzione tramite metodo o proprietà nel modello
+        if (method_exists($model, 'getLogParents')) {
+            try {
+                $parents = (array) $model->getLogParents();
+            } catch (\Throwable $e) {
+                $parents = [];
+            }
+        } elseif (property_exists($model, 'logParents')) {
+            try {
+                $parents = (array) $model->logParents;
+            } catch (\Throwable $e) {
+                $parents = [];
+            }
+        }
+
+        // 2. Fallback tramite configurazione centralizzata parent_relations
+        if (empty($parents)) {
+            $configured = config('logoperations.parent_relations', []);
+            $class = get_class($model);
+            if (isset($configured[$class])) {
+                $parents = (array) $configured[$class];
+            }
+        }
+
+        if (empty($parents)) {
+            return;
+        }
+
+        foreach ($parents as $relation) {
+            if (!is_string($relation) || empty($relation)) {
+                continue;
+            }
+
+            try {
+                $parent = null;
+
+                // Se la relazione è già eager-loaded, riutilizzala direttamente senza eseguire query
+                if ($model->relationLoaded($relation)) {
+                    $parent = $model->getRelation($relation);
+                } elseif (method_exists($model, $relation)) {
+                    $relInstance = $model->{$relation}();
+                    if ($relInstance instanceof \Illuminate\Database\Eloquent\Relations\Relation) {
+                        // Se è una BelongsTo e la foreign key è null/vuota, evita la query DB
+                        if ($relInstance instanceof \Illuminate\Database\Eloquent\Relations\BelongsTo) {
+                            $fk = $relInstance->getForeignKeyName();
+                            if (empty($model->{$fk})) {
+                                continue;
+                            }
+                        }
+                        $parent = $model->{$relation};
+                    }
+                }
+
+                if ($parent instanceof \Illuminate\Database\Eloquent\Model) {
+                    // Registra il genitore con azione 'associated'
+                    $this->recordTouchedModel($parent, 'associated');
+                }
+            } catch (\Throwable $e) {
+                // Previene qualsiasi interruzione del flusso applicativo
+            }
+        }
     }
 
     /**

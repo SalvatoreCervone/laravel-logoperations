@@ -11,6 +11,8 @@ class OrderItem extends Model
 
     protected $guarded = [];
 
+    protected array $logParents = ['order'];
+
     public function order()
     {
         return $this->belongsTo(Order::class);

@@ -47,6 +47,20 @@ trait HasOperationLogs
     }
 
     /**
+     * Relazioni genitore/padre a cui propagare la cronologia degli eventi di questo modello.
+     * Può essere dichiarato nel modello come:
+     *   protected array $logParents = ['anagrafica', 'ufficio'];
+     * oppure sovrascrivendo questo metodo:
+     *   public function getLogParents(): array { return ['anagrafica']; }
+     *
+     * @return array<string>
+     */
+    public function getLogParents(): array
+    {
+        return property_exists($this, 'logParents') ? (array) $this->logParents : [];
+    }
+
+    /**
      * Relazione polimorfica a tutti i log delle operazioni associati a questo modello.
      */
     public function operationLogs(): MorphMany

@@ -25,6 +25,8 @@ use SalvatoreCervone\LogOperations\Traits\HasOperationLogs;
 
 class TestDipendente extends Model
 {
+    use HasOperationLogs;
+
     protected $table = 'test_dipendenti';
     protected $guarded = [];
 }
@@ -35,6 +37,13 @@ class TestAnagraficaAssenza extends Model
 
     protected $table = 'test_anagrafica_assenze';
     protected $guarded = [];
+
+    protected array $logParents = ['dipendente'];
+
+    public function dipendente()
+    {
+        return $this->belongsTo(TestDipendente::class, 'dipendente_id');
+    }
 }
 
 class TestNotifica extends Model
@@ -149,6 +158,15 @@ class MultiSubjectTrackingTest extends TestCase
                 $dip = TestDipendente::create(['nome' => 'Con Pivot']);
                 TestPivotModel::create(['a_id' => 1, 'b_id' => 2]);
                 return response()->json(['ok' => true]);
+            });
+
+            // Rotta che crea SOLO il figlio per testare la propagazione del genitore via $logParents
+            Route::post('/test-parent-propagation', function (\Illuminate\Http\Request $request) {
+                $assenza = TestAnagraficaAssenza::create([
+                    'dipendente_id' => $request->input('dipendente_id'),
+                    'tipo_assenza' => 'permesso',
+                ]);
+                return response()->json(['assenza_id' => $assenza->id]);
             });
         });
 
@@ -481,5 +499,44 @@ class MultiSubjectTrackingTest extends TestCase
         $this->assertCount(1, $storyboard);
         $this->assertEquals(TestDipendente::class, $storyboard->first()->subject_type);
         $this->assertTrue($storyboard->first()->subjects->contains('subject_type', TestAnagraficaAssenza::class));
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Test: Propagazione Storyboard ai Modelli Genitore ($logParents)
+    |--------------------------------------------------------------------------
+    */
+
+    public function test_child_model_with_log_parents_automatically_links_parent_to_storyboard(): void
+    {
+        // 1. Il dipendente esiste già a DB prima della richiesta HTTP
+        $dipendente = TestDipendente::create(['nome' => 'Salvatore Cervone']);
+
+        // 2. La richiesta crea SOLO l'assenza (nessun touch o update sul dipendente)
+        $response = $this->postJson('/test-parent-propagation', ['dipendente_id' => $dipendente->id]);
+        $response->assertOk();
+
+        // 3. Verifica: la tabella log_operazioni_soggetti contiene entrambi:
+        //    - l'assenza creata (created)
+        //    - il dipendente genitore (associated)
+        $subjectsTable = config('logoperations.subjects_table_name', 'log_operazioni_soggetti');
+        $this->assertDatabaseHas($subjectsTable, [
+            'subject_type' => TestAnagraficaAssenza::class,
+            'action' => 'created',
+        ]);
+        $this->assertDatabaseHas($subjectsTable, [
+            'subject_type' => TestDipendente::class,
+            'subject_id' => (string) $dipendente->id,
+            'action' => 'associated',
+        ]);
+
+        // 4. Storyboard del dipendente: contiene l'evento anche se non è stato salvato o aggiornato!
+        $storyboard = $dipendente->storyboard();
+        $this->assertCount(1, $storyboard);
+        $this->assertEquals('/test-parent-propagation', $storyboard->first()->rotta);
+
+        // 5. Verifica che l'evento indichi che il dipendente è stato associato come parent
+        $event = $storyboard->first();
+        $this->assertTrue($event->subjects->contains('subject_type', TestDipendente::class));
     }
 }

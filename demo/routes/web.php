@@ -179,6 +179,24 @@ Route::middleware('log.operations')->group(function () {
         ]);
     });
 
+    Route::post('/api/demo/orders/{order}/add-item', function (Request $request, Order $order) {
+        // Crea solo l'articolo figlio. Tramite $logParents = ['order'] in OrderItem,
+        // l'evento viene automaticamente propagato e collegato anche alla Storyboard di Order!
+        $item = OrderItem::create([
+            'order_id' => $order->id,
+            'product_name' => $request->input('product_name', 'Nuovo Articolo Aggiunto'),
+            'quantity' => (int) $request->input('quantity', 1),
+            'unit_price' => (float) $request->input('unit_price', 75.00),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Aggiunto Articolo #{$item->id} all'Ordine #{$order->id} (propagato automaticamente via \$logParents)!",
+            'item_id' => $item->id,
+            'order_id' => $order->id,
+        ]);
+    });
+
     Route::put('/api/demo/orders/{order}', function (Request $request, Order $order) {
         $order->update($request->only('status', 'amount', 'customer_name'));
         return response()->json([

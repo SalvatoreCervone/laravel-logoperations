@@ -124,6 +124,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Mappatura Relazioni Padre (Log Parents)
+    |--------------------------------------------------------------------------
+    |
+    | Mappatura centralizzata opzionale per propagare la Storyboard di un'operazione
+    | anche ai modelli genitore/aggregati di riferimento (es. OrderItem -> order,
+    | AnagraficaUfficio -> anagrafica).
+    |
+    | In alternativa (consigliata), puoi dichiarare la proprietà direttamente
+    | nel modello Eloquent con il trait HasOperationLogs:
+    |   protected array $logParents = ['anagrafica', 'ufficio'];
+    |
+    */
+
+    'parent_relations' => [
+        // App\Models\AnagraficaUfficio::class => ['anagrafica'],
+        // App\Models\OrderItem::class => ['order'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Connessione Database Dedicata
     |--------------------------------------------------------------------------
     |
