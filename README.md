@@ -22,6 +22,7 @@ Pacchetto Composer Laravel per il **tracciamento, monitoraggio e analisi delle o
 - 📖 **Storyboard del Record (Timeline di Vita & Audit Trail)**:
   - Tracciamento cronologico e deterministico del ciclo di vita dei modelli Eloquent (`Order`, `Invoice`, `Ticket`, ecc.) tramite Route Model Binding e trait `HasOperationLogs`.
   - Componente Vue autonomo `<LogStoryboard />` e API REST dedicate per visualizzare l'intera storia di un'entità con classificazione eventi (`create`, `update`, `delete`, `checkpoint`, `error`).
+  - **Propagazione ai Modelli Padre (`$logParents`)**: quando viene creata o aggiornata un'entità secondaria/figlia (es. `AnagraficaUfficio`, `OrderItem`), l'evento viene propagato e collegato automaticamente anche alla timeline del modello genitore (`Anagrafica`, `Order`), via proprietà o configurazione.
 - 🧩 **Tracciamento Multi-Soggetto con Auto-Discovery Eloquent**:
   - Intercettazione automatica dei modelli Eloquent (`created`, `updated`, `deleted`) toccati durante una singola richiesta o operazione complessa.
   - **Architettura Relazionale Indicizzata (`log_operazioni_soggetti`)**: 1 sola riga master per richiesta HTTP e 1 riga per ciascuna entità toccata, salvate in modo cumulativo con una **singola query `INSERT` bulk** (zero overhead anche su 50 o 100+ entità).
