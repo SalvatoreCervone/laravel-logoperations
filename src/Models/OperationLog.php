@@ -33,6 +33,30 @@ class OperationLog extends Model
         return config('logoperations.database_connection') ?? parent::getConnectionName();
     }
 
+    /**
+     * Factory personalizzata per le relazioni MorphTo (user, subject).
+     *
+     * Quando OperationLog risiede su una connessione dedicata (es. 'logoperazioni'),
+     * impedisce a Laravel di forzare i modelli target polimorfici (es. App\Models\User)
+     * sulla connessione dei log se tali modelli non definiscono una connessione esplicita.
+     * In tal caso, imposta la connessione predefinita dell'applicazione (config('database.default')).
+     */
+    protected function newMorphTo(Builder $query, Model $parent, $foreignKey, $ownerKey, $type, $relation)
+    {
+        return new class($query, $parent, $foreignKey, $ownerKey, $type, $relation) extends MorphTo {
+            public function createModelByType($type)
+            {
+                $class = Model::getActualClassNameForMorph($type);
+
+                return tap(new $class, function ($instance) {
+                    if (! $instance->getConnectionName()) {
+                        $instance->setConnection(config('database.default'));
+                    }
+                });
+            }
+        };
+    }
+
     protected $guarded = ['id', 'created_at', 'updated_at'];
 
     protected static function booted(): void

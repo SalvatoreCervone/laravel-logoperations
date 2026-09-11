@@ -4,6 +4,7 @@ namespace SalvatoreCervone\LogOperations\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
@@ -37,6 +38,28 @@ class OperationSubject extends Model
     public function getConnectionName(): ?string
     {
         return config('logoperations.database_connection') ?? parent::getConnectionName();
+    }
+
+    /**
+     * Factory personalizzata per le relazioni MorphTo (subject).
+     *
+     * Impedisce a Laravel di forzare il modello target toccato sulla connessione dei log
+     * se il modello risiede sul database applicativo principale.
+     */
+    protected function newMorphTo(Builder $query, Model $parent, $foreignKey, $ownerKey, $type, $relation)
+    {
+        return new class($query, $parent, $foreignKey, $ownerKey, $type, $relation) extends MorphTo {
+            public function createModelByType($type)
+            {
+                $class = Model::getActualClassNameForMorph($type);
+
+                return tap(new $class, function ($instance) {
+                    if (! $instance->getConnectionName()) {
+                        $instance->setConnection(config('database.default'));
+                    }
+                });
+            }
+        };
     }
 
     protected $guarded = ['id'];

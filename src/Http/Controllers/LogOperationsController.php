@@ -300,8 +300,14 @@ class LogOperationsController extends Controller
         $logs = $query->orderBy('dataoperazione', $order)
             ->orderBy('id', $order)
             ->limit($limit)
-            ->with(['subjects', 'user'])
+            ->with('subjects')
             ->get();
+
+        try {
+            $logs->load('user');
+        } catch (\Throwable) {
+            // Se la connessione o tabella utente non è accessibile, prosegui senza bloccare lo Storyboard
+        }
 
         $events = $logs->map(function ($log) use ($subjectType, $subjectId) {
             $enriched = $this->enrichWithUserData($log);
@@ -875,12 +881,13 @@ class LogOperationsController extends Controller
 
                     $modelInstance = new $actualClass;
                     $userTable = $modelInstance->getTable();
+                    $userConnection = $modelInstance->getConnectionName() ?: config('database.default');
 
-                    // Verifica quali colonne esistono realmente nella tabella (con cache di processo per evitare query ripetute a information_schema)
+                    // Verifica quali colonne esistono realmente nella tabella utente sulla sua specifica connessione DB
                     if (!isset(static::$userColumnsCache[$userTable])) {
                         static::$userColumnsCache[$userTable] = [];
                         foreach ($searchFields as $field) {
-                            if (Schema::hasColumn($userTable, $field)) {
+                            if (Schema::connection($userConnection)->hasColumn($userTable, $field)) {
                                 static::$userColumnsCache[$userTable][] = $field;
                             }
                         }
@@ -891,18 +898,25 @@ class LogOperationsController extends Controller
                         continue;
                     }
 
-                    $subQuery->orWhere(function ($typeQuery) use ($userType, $userTable, $existingFields, $like) {
-                        $typeQuery->where('user_type', $userType)
-                            ->whereIn('user_id', function ($inQuery) use ($userTable, $existingFields, $like) {
-                                $inQuery->select('id')
-                                    ->from($userTable)
-                                    ->where(function ($q) use ($existingFields, $like) {
-                                        foreach ($existingFields as $field) {
-                                            $q->orWhere($field, 'like', $like);
-                                        }
-                                    });
-                            });
-                    });
+                    // Esegui la query degli ID direttamente sulla connessione nativa del modello utente,
+                    // evitando subquery cross-database che falliscono quando i log risiedono su connessione separata
+                    $userIds = $modelInstance->newQuery()
+                        ->select($modelInstance->getKeyName())
+                        ->where(function ($q) use ($existingFields, $like) {
+                            foreach ($existingFields as $field) {
+                                $q->orWhere($field, 'like', $like);
+                            }
+                        })
+                        ->limit(500)
+                        ->pluck($modelInstance->getKeyName())
+                        ->all();
+
+                    if (!empty($userIds)) {
+                        $subQuery->orWhere(function ($typeQuery) use ($userType, $userIds) {
+                            $typeQuery->where('user_type', $userType)
+                                ->whereIn('user_id', $userIds);
+                        });
+                    }
                 } catch (\Throwable $e) {
                     // Se il modello non è caricabile, ignora silenziosamente
                     continue;
