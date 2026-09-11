@@ -50,7 +50,12 @@ class OperationLog extends Model
 
                 return tap(new $class, function ($instance) {
                     if (! $instance->getConnectionName()) {
-                        $instance->setConnection(config('database.default'));
+                        $customUserConn = config('logoperations.user_database_connection');
+                        if ($customUserConn && ($this->getRelationName() === 'user' || is_a($instance, \Illuminate\Contracts\Auth\Authenticatable::class))) {
+                            $instance->setConnection($customUserConn);
+                        } else {
+                            $instance->setConnection(config('database.default'));
+                        }
                     }
                 });
             }

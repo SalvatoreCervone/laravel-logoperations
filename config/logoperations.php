@@ -158,6 +158,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Connessione Database Dedicata per Utenti
+    |--------------------------------------------------------------------------
+    |
+    | Se la tabella utenti risiede su una connessione DB specifica diversa
+    | sia da quella dei log sia da quella default dell'app, indica qui il nome
+    | (es. 'auth_db'). Se null, usa la proprietà $connection del modello User
+    | oppure il database predefinito (config('database.default')).
+    |
+    */
+
+    'user_database_connection' => env('LOG_OPERATIONS_USER_DB_CONNECTION', null),
+
+    /*
+    |--------------------------------------------------------------------------
     | Caricamento Automatico Migrazioni
     |--------------------------------------------------------------------------
     |

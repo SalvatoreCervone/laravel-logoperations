@@ -881,7 +881,8 @@ class LogOperationsController extends Controller
 
                     $modelInstance = new $actualClass;
                     $userTable = $modelInstance->getTable();
-                    $userConnection = $modelInstance->getConnectionName() ?: config('database.default');
+                    $userConnection = $modelInstance->getConnectionName()
+                        ?: (config('logoperations.user_database_connection') ?: config('database.default'));
 
                     // Verifica quali colonne esistono realmente nella tabella utente sulla sua specifica connessione DB
                     if (!isset(static::$userColumnsCache[$userTable])) {

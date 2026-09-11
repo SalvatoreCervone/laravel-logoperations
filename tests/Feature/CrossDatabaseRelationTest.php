@@ -61,4 +61,30 @@ class CrossDatabaseRelationTest extends TestCase
         $this->assertEquals('testing', $subjectModel->getConnectionName());
         $this->assertNotEquals('dedicated_logs_db', $subjectModel->getConnectionName());
     }
+
+    public function test_user_database_connection_config_overrides_default_connection(): void
+    {
+        config([
+            'database.default' => 'testing',
+            'database.connections.dedicated_logs_db' => [
+                'driver' => 'sqlite',
+                'database' => ':memory:',
+                'prefix' => '',
+            ],
+            'database.connections.custom_user_db' => [
+                'driver' => 'sqlite',
+                'database' => ':memory:',
+                'prefix' => '',
+            ],
+            'logoperations.database_connection' => 'dedicated_logs_db',
+            'logoperations.user_database_connection' => 'custom_user_db',
+        ]);
+
+        $log = new OperationLog();
+        $userRelation = $log->user();
+        $userModel = $userRelation->createModelByType(CrossDbTestUser::class);
+
+        // Deve usare specificamente 'custom_user_db'
+        $this->assertEquals('custom_user_db', $userModel->getConnectionName());
+    }
 }
