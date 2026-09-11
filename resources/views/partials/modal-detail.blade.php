@@ -1,5 +1,5 @@
     <!-- Modal Dettaglio Singolo Log -->
-    <div v-if="activeLog" class="modal-overlay" @click.self="closeDetail">
+    <div v-if="activeLog" class="modal-overlay" v-cloak @click.self="closeDetail">
         <div class="modal-body">
             <div class="modal-header">
                 <div style="display: flex; align-items: center; gap: 8px;">

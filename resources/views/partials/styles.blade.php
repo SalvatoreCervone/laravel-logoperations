@@ -1,4 +1,8 @@
     <style>
+        [v-cloak] {
+            display: none !important;
+        }
+
         :root {
             --bg-base: #0b0f17;
             --surface-primary: #111622;

@@ -12,7 +12,7 @@
     @include('logoperations::partials.styles')
 </head>
 <body>
-<div id="app">
+<div id="app" v-cloak>
     @include('logoperations::partials.navbar')
 
     <div class="dash-container">
