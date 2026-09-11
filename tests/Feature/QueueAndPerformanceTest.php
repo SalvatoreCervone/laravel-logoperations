@@ -160,4 +160,52 @@ class QueueAndPerformanceTest extends TestCase
         // Pulizia
         @unlink($emergencyFile);
     }
+
+    public function test_process_operation_log_persists_touched_subjects_in_relational_table(): void
+    {
+        $logData = [
+            'rotta' => '/async-multi-test',
+            'verbo' => 'post',
+            'codicehttp' => 200,
+            'nomeapplicazione' => 'laravel-test',
+            'dataoperazione' => now(),
+        ];
+
+        $touchedSubjects = [
+            [
+                'subject_type' => 'App\\Models\\Order',
+                'subject_id' => '101',
+                'action' => 'created',
+            ],
+            [
+                'subject_type' => 'App\\Models\\Invoice',
+                'subject_id' => '202',
+                'action' => 'associated',
+            ],
+        ];
+
+        $job = new ProcessOperationLog($logData, $touchedSubjects);
+        $job->handle();
+
+        $this->assertDatabaseHas('log_operazioni', [
+            'rotta' => '/async-multi-test',
+        ]);
+
+        $log = OperationLog::where('rotta', '/async-multi-test')->first();
+        $this->assertNotNull($log);
+
+        $subjectsTable = config('logoperations.subjects_table_name', 'log_operazioni_soggetti');
+        $this->assertDatabaseHas($subjectsTable, [
+            'log_id' => $log->id,
+            'subject_type' => 'App\\Models\\Order',
+            'subject_id' => '101',
+            'action' => 'created',
+        ]);
+        $this->assertDatabaseHas($subjectsTable, [
+            'log_id' => $log->id,
+            'subject_type' => 'App\\Models\\Invoice',
+            'subject_id' => '202',
+            'action' => 'associated',
+        ]);
+    }
 }

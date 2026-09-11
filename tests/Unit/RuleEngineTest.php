@@ -109,4 +109,24 @@ class RuleEngineTest extends TestCase
         $eval3 = $this->engine->evaluateRequest($req3);
         $this->assertFalse($eval3['should_log']);
     }
+
+    public function test_it_evaluates_route_with_optional_parameters_in_both_engine_and_model(): void
+    {
+        $rule = OperationRule::create([
+            'type' => 'route',
+            'target' => 'api/products/{id?}',
+            'http_methods' => ['GET'],
+            'stack_level' => 'base',
+            'is_active' => true,
+        ]);
+        $this->engine->flushCache();
+
+        // 1. Con parametro presente
+        $this->assertTrue($this->engine->matchUri('api/products/{id?}', 'api/products/99'));
+        $this->assertTrue($rule->matchesUri('api/products/99'));
+
+        // 2. Senza parametro opzionale
+        $this->assertTrue($this->engine->matchUri('api/products/{id?}', 'api/products'));
+        $this->assertTrue($rule->matchesUri('api/products'));
+    }
 }

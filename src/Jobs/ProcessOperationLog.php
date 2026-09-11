@@ -24,10 +24,12 @@ class ProcessOperationLog implements ShouldQueue
     public array $backoff = [10, 30, 60];
 
     public array $logData;
+    public array $touchedSubjects;
 
-    public function __construct(array $logData)
+    public function __construct(array $logData, array $touchedSubjects = [])
     {
         $this->logData = $logData;
+        $this->touchedSubjects = $touchedSubjects;
         $this->tries = (int) config('logoperations.queue.tries', 3);
         $this->backoff = config('logoperations.queue.backoff', [10, 30, 60]);
 
@@ -43,11 +45,37 @@ class ProcessOperationLog implements ShouldQueue
     }
 
     /**
-     * Esecuzione del Job: salvataggio su database.
+     * Esecuzione del Job: salvataggio su database del log e dei soggetti correlati.
      */
     public function handle(): void
     {
-        OperationLog::create($this->logData);
+        $log = OperationLog::create($this->logData);
+
+        if ($log && !empty($this->touchedSubjects)) {
+            try {
+                $table = config('logoperations.subjects_table_name', 'log_operazioni_soggetti');
+                $connection = config('logoperations.database_connection');
+                $db = $connection ? \Illuminate\Support\Facades\DB::connection($connection) : \Illuminate\Support\Facades\DB::connection();
+
+                $now = now();
+                $rows = [];
+                foreach ($this->touchedSubjects as $touched) {
+                    $rows[] = [
+                        'log_id' => $log->id,
+                        'subject_type' => $touched['subject_type'],
+                        'subject_id' => $touched['subject_id'],
+                        'action' => $touched['action'],
+                        'created_at' => $now,
+                    ];
+                }
+
+                if (!empty($rows)) {
+                    $db->table($table)->insert($rows);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('[LogOperations] Errore inserimento soggetti in job di coda: ' . $e->getMessage());
+            }
+        }
 
         // Reset del contatore fallimenti in caso di successo
         try {

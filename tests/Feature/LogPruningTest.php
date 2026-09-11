@@ -222,4 +222,49 @@ class LogPruningTest extends TestCase
         $prunableCount = (new OperationRule)->prunable()->count();
         $this->assertEquals(1, $prunableCount);
     }
+
+    public function test_prune_logs_preserves_logs_with_relational_subjects(): void
+    {
+        // Log vecchio di 400 giorni SENZA subject primario, ma CON soggetto collegato in log_operazioni_soggetti
+        $storyboardLog = OperationLog::create([
+            'rotta' => '/api/old-batch-operation',
+            'verbo' => 'post',
+            'codicehttp' => 200,
+            'client_ip' => '127.0.0.1',
+            'dataoperazione' => now()->subDays(400),
+            'subject_type' => null,
+            'subject_id' => null,
+        ]);
+
+        \SalvatoreCervone\LogOperations\Models\OperationSubject::create([
+            'log_id' => $storyboardLog->id,
+            'subject_type' => 'App\\Models\\Order',
+            'subject_id' => '999',
+            'action' => 'created',
+        ]);
+
+        // Altro log vecchio SENZA alcun soggetto (deve essere eliminato)
+        $orphanLog = OperationLog::create([
+            'rotta' => '/api/old-orphan',
+            'verbo' => 'get',
+            'codicehttp' => 200,
+            'client_ip' => '127.0.0.1',
+            'dataoperazione' => now()->subDays(400),
+            'subject_type' => null,
+            'subject_id' => null,
+        ]);
+
+        $this->artisan('logoperations:prune --days=365 --keep-storyboards --force')
+            ->assertExitCode(0);
+
+        // Il log orfano deve essere stato eliminato
+        $this->assertDatabaseMissing('log_operazioni', ['id' => $orphanLog->id]);
+
+        // Il log collegato alla Storyboard dell'ordine 999 deve essere stato rigorosamente protetto!
+        $this->assertDatabaseHas('log_operazioni', ['id' => $storyboardLog->id]);
+        $this->assertDatabaseHas('log_operazioni_soggetti', [
+            'log_id' => $storyboardLog->id,
+            'subject_id' => '999',
+        ]);
+    }
 }

@@ -135,4 +135,23 @@ class ProxyClassGeneratorTest extends TestCase
         $this->assertSame($target, $proxy);
         $this->assertEquals('pong', $proxy->ping());
     }
+
+    public function test_service_with_default_constants_and_objects_generates_proxy_safely(): void
+    {
+        $target = new ServiceWithDefaults();
+        $proxy = $this->generator->createProxy($target, ServiceWithDefaults::class, ['process']);
+
+        $this->assertInstanceOf(ServiceWithDefaults::class, $proxy);
+        $this->assertEquals(42, $proxy->process());
+    }
+}
+
+class ServiceWithDefaults
+{
+    const DEFAULT_LIMIT = 42;
+
+    public function process(int $limit = self::DEFAULT_LIMIT, ?\stdClass $obj = null): int
+    {
+        return $limit;
+    }
 }

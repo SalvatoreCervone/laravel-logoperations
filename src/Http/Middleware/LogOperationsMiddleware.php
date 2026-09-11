@@ -284,11 +284,11 @@ class LogOperationsMiddleware
         try {
             $queueConfig = config('logoperations.queue', []);
             $log = null;
+            $touchedModels = $this->manager->getTouchedModels();
 
             if (!empty($queueConfig['enabled'])) {
                 try {
-                    ProcessOperationLog::dispatch($logData);
-                    // Con la coda, i soggetti devono essere inseriti nel job
+                    ProcessOperationLog::dispatch($logData, $touchedModels);
                 } catch (\Throwable $queueException) {
                     // Fallback immediato su salvataggio sincrono se il broker di coda è offline
                     Log::warning('[LogOperations] Fallback sincrono: dispatch coda non riuscito (' . $queueException->getMessage() . ').');
@@ -298,8 +298,8 @@ class LogOperationsMiddleware
                 $log = OperationLog::create($logData);
             }
 
-            // Bulk insert dei soggetti toccati durante la richiesta
-            if ($log && $this->manager->hasTouchedModels()) {
+            // Bulk insert dei soggetti toccati durante la richiesta (in modalità sincrona o fallback)
+            if ($log && !empty($touchedModels)) {
                 $this->persistTouchedSubjects($log);
             }
 
@@ -626,6 +626,11 @@ class LogOperationsMiddleware
         }
 
         DB::listen(function ($query) {
+            $manager = app(LogOperationsManager::class);
+            if (!$manager->isRequestActive()) {
+                return;
+            }
+
             $tracer = app(StackTracer::class);
             if ($tracer->isEnabled() && config('logoperations.stack_trace.trace_db_callers', true)) {
                 $caller = $tracer->findProjectCaller();

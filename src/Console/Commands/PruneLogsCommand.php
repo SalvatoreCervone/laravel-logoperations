@@ -68,11 +68,12 @@ class PruneLogsCommand extends Command
             return Command::SUCCESS;
         }
 
-        // Conteggio record Storyboard protetti
+        // Conteggio record Storyboard protetti (sia subject primario che soggetti correlati nella tabella log_operazioni_soggetti)
         $storyboardProtected = (clone $baseOlderQuery)
             ->where(function ($q) {
                 $q->whereNotNull('subject_type')
-                  ->orWhereNotNull('subject_id');
+                  ->orWhereNotNull('subject_id')
+                  ->orWhereHas('subjects');
             })
             ->count();
 
@@ -90,7 +91,9 @@ class PruneLogsCommand extends Command
         $eligibleQuery = clone $baseOlderQuery;
 
         if ($keepStoryboards) {
-            $eligibleQuery->whereNull('subject_type')->whereNull('subject_id');
+            $eligibleQuery->whereNull('subject_type')
+                ->whereNull('subject_id')
+                ->whereDoesntHave('subjects');
         }
 
         if ($keepErrors) {

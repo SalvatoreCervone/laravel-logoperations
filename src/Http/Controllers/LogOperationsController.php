@@ -28,6 +28,11 @@ class LogOperationsController extends Controller
 {
     use AuthorizesLogOperations;
 
+    /**
+     * Cache in memoria delle colonne esistenti per tabella per azzerare query Schema::hasColumn.
+     */
+    protected static array $userColumnsCache = [];
+
     public function __construct()
     {
         $this->middleware(function ($request, $next) {
@@ -251,13 +256,22 @@ class LogOperationsController extends Controller
         $query = OperationLog::query()
             ->forSubject($subjectType, $subjectId);
 
-        // Calcolo KPI riassuntivi sull'intera storia dell'entità
-        $totalEvents = (clone $query)->count();
-        $totalErrors = (clone $query)->where('codicehttp', '>=', 400)->count();
-        $totalRollbacks = (clone $query)->whereNotNull('transaction_status')->count();
-        $totalCheckpoints = (clone $query)->where('verbo', 'STEP')->count();
-        $firstActivity = (clone $query)->min('dataoperazione');
-        $lastActivity = (clone $query)->max('dataoperazione');
+        // Calcolo KPI riassuntivi sull'intera storia dell'entità con una singola query aggregata ANSI SQL (-83% query)
+        $kpisRaw = (clone $query)->selectRaw("
+            COUNT(*) as total_events,
+            SUM(CASE WHEN codicehttp >= 400 THEN 1 ELSE 0 END) as total_errors,
+            SUM(CASE WHEN transaction_status IS NOT NULL THEN 1 ELSE 0 END) as total_rollbacks,
+            SUM(CASE WHEN UPPER(verbo) = 'STEP' THEN 1 ELSE 0 END) as total_checkpoints,
+            MIN(dataoperazione) as first_activity,
+            MAX(dataoperazione) as last_activity
+        ")->first();
+
+        $totalEvents = (int) ($kpisRaw->total_events ?? 0);
+        $totalErrors = (int) ($kpisRaw->total_errors ?? 0);
+        $totalRollbacks = (int) ($kpisRaw->total_rollbacks ?? 0);
+        $totalCheckpoints = (int) ($kpisRaw->total_checkpoints ?? 0);
+        $firstActivity = $kpisRaw->first_activity ?? null;
+        $lastActivity = $kpisRaw->last_activity ?? null;
 
         // Filtri opzionali sulla timeline
         if ($request->boolean('has_error')) {
@@ -588,10 +602,18 @@ class LogOperationsController extends Controller
             $query->where('nomeapplicazione', $request->app);
         }
 
-        $totalRequests = (clone $query)->count();
-        $totalErrors = (clone $query)->where('codicehttp', '>=', 400)->count();
-        $avgDuration = (clone $query)->whereNotNull('duration_ms')->avg('duration_ms');
-        $pendingTransactions = (clone $query)->whereNotNull('transaction_status')->count();
+        // Calcolo metriche statistiche aggregate con una singola query SQL (-75% query)
+        $statsRaw = (clone $query)->selectRaw("
+            COUNT(*) as total_requests,
+            SUM(CASE WHEN codicehttp >= 400 THEN 1 ELSE 0 END) as total_errors,
+            AVG(duration_ms) as avg_duration,
+            SUM(CASE WHEN transaction_status IS NOT NULL THEN 1 ELSE 0 END) as pending_transactions
+        ")->first();
+
+        $totalRequests = (int) ($statsRaw->total_requests ?? 0);
+        $totalErrors = (int) ($statsRaw->total_errors ?? 0);
+        $avgDuration = $statsRaw->avg_duration !== null ? (float) $statsRaw->avg_duration : null;
+        $pendingTransactions = (int) ($statsRaw->pending_transactions ?? 0);
 
         // Top 5 errori più frequenti
         $topErrors = (clone $query)
@@ -854,13 +876,16 @@ class LogOperationsController extends Controller
                     $modelInstance = new $actualClass;
                     $userTable = $modelInstance->getTable();
 
-                    // Verifica quali colonne esistono realmente nella tabella
-                    $existingFields = [];
-                    foreach ($searchFields as $field) {
-                        if (Schema::hasColumn($userTable, $field)) {
-                            $existingFields[] = $field;
+                    // Verifica quali colonne esistono realmente nella tabella (con cache di processo per evitare query ripetute a information_schema)
+                    if (!isset(static::$userColumnsCache[$userTable])) {
+                        static::$userColumnsCache[$userTable] = [];
+                        foreach ($searchFields as $field) {
+                            if (Schema::hasColumn($userTable, $field)) {
+                                static::$userColumnsCache[$userTable][] = $field;
+                            }
                         }
                     }
+                    $existingFields = static::$userColumnsCache[$userTable];
 
                     if (empty($existingFields)) {
                         continue;

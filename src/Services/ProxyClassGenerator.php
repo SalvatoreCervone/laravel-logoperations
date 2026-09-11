@@ -84,7 +84,12 @@ class ProxyClassGenerator
 
         $code = $this->compileProxyClass($ref, $proxyNamespace, $proxyShortName, $cleanClassName);
 
-        eval($code);
+        try {
+            eval($code);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("[LogOperations] Impossibile generare proxy per {$cleanClassName}: " . $e->getMessage());
+            return null;
+        }
 
         self::$generatedClasses[$cleanClassName] = $fullProxyName;
 
@@ -224,7 +229,16 @@ PHP;
             $paramStr .= '$' . $paramName;
 
             if ($param->isDefaultValueAvailable()) {
-                $paramStr .= ' = ' . var_export($param->getDefaultValue(), true);
+                try {
+                    $defaultVal = $param->getDefaultValue();
+                    if (is_object($defaultVal) && !($defaultVal instanceof \UnitEnum)) {
+                        $paramStr .= ' = new \\' . get_class($defaultVal) . '()';
+                    } else {
+                        $paramStr .= ' = ' . var_export($defaultVal, true);
+                    }
+                } catch (\Throwable $e) {
+                    // Fallback di sicurezza: se la reflection del default value non riesce
+                }
             }
 
             $paramsDecl[] = $paramStr;

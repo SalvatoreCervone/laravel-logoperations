@@ -93,15 +93,8 @@ class OperationRule extends Model
      */
     public function matchesHttpMethod(string $httpMethod): bool
     {
-        $allowed = $this->http_methods;
-        if (empty($allowed) || in_array('*', $allowed)) {
-            return true;
-        }
-
-        $upperMethod = strtoupper($httpMethod);
-        $upperAllowed = array_map('strtoupper', $allowed);
-
-        return in_array($upperMethod, $upperAllowed);
+        return app(\SalvatoreCervone\LogOperations\Services\RuleEngine::class)
+            ->matchMethod($this->http_methods ?: ['*'], $httpMethod);
     }
 
     /**
@@ -109,23 +102,8 @@ class OperationRule extends Model
      */
     public function matchesUri(string $uri): bool
     {
-        $pattern = trim(strtok($this->target, '?'), '/');
-        $cleanUri = trim(strtok($uri, '?'), '/');
-
-        if (Str::is($pattern, $cleanUri) || $pattern === $cleanUri) {
-            return true;
-        }
-
-        if (str_contains($pattern, '{')) {
-            $regex = preg_quote($pattern, '#');
-            $regex = preg_replace('/\\\{[a-zA-Z0-9_]+\\\?\\\}/', '(?:/[^/]+)?', $regex);
-            $regex = preg_replace('/\\\{[a-zA-Z0-9_]+\\\}/', '[^/]+', $regex);
-            if (preg_match('#^' . $regex . '$#i', $cleanUri)) {
-                return true;
-            }
-        }
-
-        return false;
+        return app(\SalvatoreCervone\LogOperations\Services\RuleEngine::class)
+            ->matchUri($this->target, $uri);
     }
 
     /**

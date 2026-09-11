@@ -40,11 +40,19 @@ class LogExportService
 
         fputcsv($stream, $headers);
 
+        // Cache in memoria durante lo streaming per azzerare le query N+1 sugli utenti
+        $userCache = [];
+
         // Streaming con chunk lazily loaded per non saturare la memoria RAM
-        $query->lazy(1000)->each(function ($log) use ($stream) {
+        $query->lazy(1000)->each(function ($log) use ($stream, &$userCache) {
             $userDesc = '';
-            if ($log->user) {
-                $userDesc = $log->user->name ?? $log->user->email ?? ('User #' . $log->user_id);
+            if ($log->user_id) {
+                $cacheKey = ($log->user_type ?: 'default') . ':' . $log->user_id;
+                if (!array_key_exists($cacheKey, $userCache)) {
+                    $user = $log->user;
+                    $userCache[$cacheKey] = $user ? ($user->name ?? $user->email ?? ('User #' . $log->user_id)) : ('User #' . $log->user_id);
+                }
+                $userDesc = $userCache[$cacheKey];
             }
 
             $date = $log->dataoperazione ?? $log->created_at;

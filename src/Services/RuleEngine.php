@@ -171,9 +171,10 @@ class RuleEngine
     /**
      * Verifica pattern URI supportando wildcard, template Laravel (es. users/{id}) e query string.
      */
-    protected function matchUri(string $pattern, string $uri, ?string $routeUri = null): bool
+    public function matchUri(string $pattern, string $uri, ?string $routeUri = null): bool
     {
-        $pattern = trim(strtok($pattern, '?'), '/');
+        // Rimuove eventuale query string (?foo=bar) preservando i parametri opzionali {param?}
+        $pattern = trim((string) preg_replace('/\?(?![a-zA-Z0-9_]*\}).*/', '', $pattern), '/');
         $uri = trim(strtok($uri, '?'), '/');
 
         // 1. Corrispondenza esatta o wildcard diretta sul path
@@ -207,7 +208,7 @@ class RuleEngine
     /**
      * Verifica metodo HTTP.
      */
-    protected function matchMethod(array $allowed, string $method): bool
+    public function matchMethod(array $allowed, string $method): bool
     {
         if (empty($allowed) || in_array('*', $allowed)) {
             return true;
