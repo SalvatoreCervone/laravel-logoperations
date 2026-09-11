@@ -158,6 +158,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Caricamento Automatico Migrazioni
+    |--------------------------------------------------------------------------
+    |
+    | Se true, Laravel carica ed esegue automaticamente le migrazioni del pacchetto
+    | durante il normale 'php artisan migrate'.
+    | Se imposti un database dedicato e desideri eseguire le migrazioni SOLO
+    | su quel database in modo manuale/isolato, imposta questo valore su false
+    | (oppure invoca LogOperations::ignoreMigrations() in AppServiceProvider).
+    |
+    */
+
+    'load_migrations' => env('LOG_OPERATIONS_LOAD_MIGRATIONS', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Verbi HTTP Consentiti
     |--------------------------------------------------------------------------
     |

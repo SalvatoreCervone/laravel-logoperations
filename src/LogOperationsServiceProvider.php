@@ -69,10 +69,12 @@ class LogOperationsServiceProvider extends ServiceProvider
             __DIR__ . '/../database/migrations/' => database_path('migrations'),
         ], 'logoperations-migrations');
 
-        // Caricamento automatico delle migrazioni
-        $this->loadMigrationsFrom(
-            __DIR__ . '/../database/migrations'
-        );
+        // Caricamento automatico delle migrazioni (se abilitato e non ignorato manualmente)
+        if (config('logoperations.load_migrations', true) && LogOperationsManager::$runsMigrations) {
+            $this->loadMigrationsFrom(
+                __DIR__ . '/../database/migrations'
+            );
+        }
 
         // Caricamento delle rotte API e Web
         $this->loadRoutesFrom(

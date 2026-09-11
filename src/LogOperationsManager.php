@@ -18,6 +18,20 @@ use SalvatoreCervone\LogOperations\Services\PrivacyManager;
 class LogOperationsManager
 {
     /**
+     * Indica se le migrazioni predefinite del package devono essere registrate.
+     */
+    public static bool $runsMigrations = true;
+
+    /**
+     * Configura il package per NON registrare automaticamente le migrazioni.
+     * Utile per chi gestisce le migrazioni manualmente su un database isolato.
+     */
+    public static function ignoreMigrations(): void
+    {
+        static::$runsMigrations = false;
+    }
+
+    /**
      * Step personalizzati registrati durante la richiesta corrente.
      */
     protected array $steps = [];

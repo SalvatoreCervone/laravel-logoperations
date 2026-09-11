@@ -14,7 +14,7 @@ class MigrationConnectionTest extends TestCase
             __DIR__ . '/../../database/migrations/2026_01_01_000002_create_log_operazioni_regole_table.php',
             __DIR__ . '/../../database/migrations/2026_01_01_000003_add_subject_to_log_operazioni_table.php',
             __DIR__ . '/../../database/migrations/2026_01_01_000004_add_pagination_index_to_log_operazioni_table.php',
-.            __DIR__ . '/../../database/migrations/2026_01_01_000005_widen_controllermethod_column.php',
+            __DIR__ . '/../../database/migrations/2026_01_01_000005_widen_controllermethod_column.php',
             __DIR__ . '/../../database/migrations/2026_01_01_000006_create_log_operazioni_soggetti_table.php',
         ];
 
@@ -36,5 +36,21 @@ class MigrationConnectionTest extends TestCase
             $migration = require $file;
             $this->assertEquals('dedicated_logs_db', $migration->getConnection());
         }
+    }
+
+    public function test_ignore_migrations_flag_toggles_correctly(): void
+    {
+        $this->assertTrue(\SalvatoreCervone\LogOperations\LogOperationsManager::$runsMigrations);
+
+        \SalvatoreCervone\LogOperations\LogOperationsManager::ignoreMigrations();
+        $this->assertFalse(\SalvatoreCervone\LogOperations\LogOperationsManager::$runsMigrations);
+
+        // Ripristina per gli altri test
+        \SalvatoreCervone\LogOperations\LogOperationsManager::$runsMigrations = true;
+    }
+
+    public function test_load_migrations_config_is_true_by_default(): void
+    {
+        $this->assertTrue(config('logoperations.load_migrations', true));
     }
 }

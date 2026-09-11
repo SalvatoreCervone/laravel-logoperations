@@ -82,6 +82,9 @@ php artisan vendor:publish --tag=logoperations-vue
 php artisan migrate
 ```
 
+> 💡 **Vuoi isolare i log su un database separato?**  
+> Imposta `LOG_OPERATIONS_DB_CONNECTION=logs_db` nel tuo file `.env`. Le migrazioni del pacchetto indirizzeranno automaticamente le tabelle sul database dedicato. Se desideri eseguire le migrazioni **esclusivamente** per LogOperations senza toccare l'app principale, consulta la sezione dedicata [Database Separato & Migrazioni Isolate](#-configurazione-su-database-separato-dedicated-logs-db--migrazioni-isolate).
+
 Verranno create le tabelle:
 - `log_operazioni`: archivio storico con supporto polimorfico (`user` e `subject`) e indice composito per la paginazione `(dataoperazione, id)`.
 - `log_operazioni_regole`: regole dinamiche configurate da interfaccia per rotte, metodi e sessioni utente.
@@ -127,6 +130,9 @@ return [
 
     // Connessione DB dedicata (null = connessione predefinita di Laravel; es. 'mysql_logs' o 'sqlite_logs')
     'database_connection' => env('LOG_OPERATIONS_DB_CONNECTION', null),
+
+    // Caricamento automatico migrazioni (false = gestisci le migrazioni solo manualmente sul DB dedicato)
+    'load_migrations' => env('LOG_OPERATIONS_LOAD_MIGRATIONS', true),
 
     // --------------------------------------------------------------------------
     // Filtri Richieste & Campionamento (Sampling)
@@ -252,6 +258,79 @@ return [
     'app_name' => env('LOG_OPERATIONS_APP_NAME', env('APP_NAME', 'laravel')),
 ];
 ```
+
+---
+
+## 🗄️ Configurazione su Database Separato (Dedicated Logs DB) & Migrazioni Isolate
+
+LogOperations è progettato per operare in modo completamente trasparente su un **database dedicato e isolato**. Questo garantisce che i log non consumino spazio o I/O sul database primario e che un `DB::rollBack()` nell'applicazione non possa mai cancellare l'audit trail.
+
+### 1. Definisci la connessione in `config/database.php`
+Aggiungi una connessione dedicata (es. `logs_db`):
+
+```php
+// config/database.php
+'connections' => [
+    // ... connessione predefinita dell'app ...
+
+    'logs_db' => [
+        'driver'    => 'mysql', // oppure pgsql, sqlite, ecc.
+        'host'      => env('DB_LOGS_HOST', '127.0.0.1'),
+        'port'      => env('DB_LOGS_PORT', '3306'),
+        'database'  => env('DB_LOGS_DATABASE', 'app_logs'),
+        'username'  => env('DB_LOGS_USERNAME', 'root'),
+        'password'  => env('DB_LOGS_PASSWORD', ''),
+        'charset'   => 'utf8mb4',
+        'collation' => 'utf8mb4_unicode_ci',
+        'prefix'    => '',
+    ],
+],
+```
+
+### 2. Imposta la variabile d'ambiente in `.env`
+```env
+LOG_OPERATIONS_DB_CONNECTION=logs_db
+```
+
+---
+
+### 3. Come eseguire le migrazioni SOLO nel database dedicato?
+
+Quando si usa un database dedicato, l'obiettivo è assicurarsi che **solo le tabelle del pacchetto** (`log_operazioni`, `log_operazioni_regole`, `log_operazioni_soggetti`) vengano create in `logs_db`, senza inquinare quel database con le tabelle dell'app (`users`, `cache`, `jobs`, ecc.).
+
+Hai a disposizione due modalità:
+
+#### 🔹 Modalità A: Isolamento Totale & Esecuzione Mirata (Consigliata)
+Se desideri che il normale `php artisan migrate` dell'applicazione ignori le tabelle di log e vuoi eseguire le migrazioni in modo indipendente:
+
+1. Disattiva il caricamento automatico delle migrazioni in `.env`:
+   ```env
+   LOG_OPERATIONS_LOAD_MIGRATIONS=false
+   ```
+   *(in alternativa puoi inserire `LogOperations::ignoreMigrations();` nel metodo `register()` del tuo `AppServiceProvider`)*.
+
+2. Esegui la migrazione mirando **esclusivamente** al percorso del pacchetto e alla connessione dedicata:
+   ```bash
+   php artisan migrate --path=vendor/salvatorecervone/laravel-logoperations/database/migrations --database=logs_db
+   ```
+   *(se hai pubblicato le migrazioni con `vendor:publish`, usa `--path=database/migrations/vendor/logoperations`)*.
+
+> In questo modo:
+> - Tutte le tabelle di LogOperations e la tabella di controllo `migrations` di Laravel risiederanno al 100% all'interno di `logs_db`.
+> - Il database principale dell'applicazione non avrà alcuna traccia delle tabelle dei log.
+> - Nessuna tabella della tua applicazione verrà mai creata nel database dei log.
+
+#### 🔹 Modalità B: Esecuzione Automatica con Connessione Dedicata
+Se lasci `LOG_OPERATIONS_LOAD_MIGRATIONS=true` (default), ogni migrazione del pacchetto implementa nativamente:
+```php
+public function getConnection(): ?string
+{
+    return config('logoperations.database_connection');
+}
+```
+Lanciando semplicemente `php artisan migrate`:
+- Le migrazioni dell'applicazione (prive di connessione esplicita) verranno eseguite sul database primario.
+- Le migrazioni di LogOperations creeranno le proprie tabelle **esclusivamente** all'interno di `logs_db`.
 
 ---
 
