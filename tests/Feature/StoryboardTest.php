@@ -285,4 +285,25 @@ class StoryboardTest extends TestCase
                 'label' => "StoryboardTestOrder #{$order->id}",
             ]);
     }
+
+    public function test_model_creation_in_store_route_automatically_links_subject_via_trait(): void
+    {
+        Route::post('/test-orders-store', function () {
+            $order = StoryboardTestOrder::create([
+                'reference' => 'ORD-AUTO-STORE',
+                'total' => 250.00,
+            ]);
+            return response()->json($order);
+        })->middleware([\Illuminate\Routing\Middleware\SubstituteBindings::class, LogOperationsMiddleware::class]);
+
+        $res = $this->postJson('/test-orders-store');
+        $res->assertStatus(200);
+
+        $orderId = $res->json('id');
+        $this->assertDatabaseHas('log_operazioni', [
+            'rotta' => '/test-orders-store',
+            'subject_type' => StoryboardTestOrder::class,
+            'subject_id' => (string) $orderId,
+        ]);
+    }
 }

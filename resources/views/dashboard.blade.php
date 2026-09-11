@@ -1028,7 +1028,8 @@
                 <div style="flex: 1; min-width: 250px;">
                     <label class="filter-field-label" style="display: block; margin-bottom: 4px;">Soggetti Recenti Rilevati nei Log:</label>
                     <select v-model="selectedSubjectKey" class="filter-input-ctrl" @change="onSubjectSelectChange">
-                        <option value="">-- Seleziona o inserisci manualmente sotto --</option>
+                        <option value="" v-if="subjectsList.length > 0">-- Seleziona soggetto recente (@{{ subjectsList.length }} rilevati) --</option>
+                        <option value="" v-else>-- Nessun soggetto nei log (inserisci manualmente a destra) --</option>
                         <option v-for="s in subjectsList" :key="s.type + '_' + s.id" :value="s.type + '::' + s.id">
                             @{{ s.label }} (@{{ s.type }})
                         </option>

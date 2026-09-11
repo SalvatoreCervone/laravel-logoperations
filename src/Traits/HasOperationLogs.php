@@ -28,6 +28,25 @@ use SalvatoreCervone\LogOperations\Models\OperationLog;
 trait HasOperationLogs
 {
     /**
+     * Boot del trait: associa automaticamente l'istanza creata come soggetto
+     * della richiesta HTTP corrente (utile per le rotte POST /store senza route model binding).
+     */
+    public static function bootHasOperationLogs(): void
+    {
+        static::created(function ($model) {
+            if (app()->bound(LogOperationsManager::class)) {
+                try {
+                    $manager = app()->make(LogOperationsManager::class);
+                    if ($manager->getSubject() === null) {
+                        $manager->setSubject($model);
+                    }
+                } catch (\Throwable $e) {
+                }
+            }
+        });
+    }
+
+    /**
      * Relazione polimorfica a tutti i log delle operazioni associati a questo modello.
      */
     public function operationLogs(): MorphMany
