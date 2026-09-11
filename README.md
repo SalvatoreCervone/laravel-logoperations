@@ -271,7 +271,7 @@ Aggiungi una connessione dedicata (es. `logs_db`):
 ```php
 // config/database.php
 'connections' => [
-    // ... connessione predefinita dell'app ...
+    // ... connessione predefinita dell'app (es. mysql) ...
 
     'logs_db' => [
         'driver'    => 'mysql', // oppure pgsql, sqlite, ecc.
@@ -289,8 +289,23 @@ Aggiungi una connessione dedicata (es. `logs_db`):
 
 ### 2. Imposta la variabile d'ambiente in `.env`
 ```env
+# Connessione per il database dei log
+DB_LOGS_HOST=127.0.0.1
+DB_LOGS_PORT=3306
+DB_LOGS_DATABASE=app_logs
+DB_LOGS_USERNAME=utente_db
+DB_LOGS_PASSWORD=password_segreta
+
+# Indica a LogOperations di usare la connessione dedicata
 LOG_OPERATIONS_DB_CONNECTION=logs_db
 ```
+
+> 💡 **Nota sui permessi MySQL (specialmente con Docker):**  
+> Se crei un nuovo database su un container MySQL esistente, ricorda di assegnare all'utente i permessi sul nuovo schema (da DBeaver come `root` o da terminale):  
+> ```sql
+> GRANT ALL PRIVILEGES ON app_logs.* TO 'utente_db'@'%';
+> FLUSH PRIVILEGES;
+> ```
 
 ---
 
@@ -331,6 +346,15 @@ public function getConnection(): ?string
 Lanciando semplicemente `php artisan migrate`:
 - Le migrazioni dell'applicazione (prive di connessione esplicita) verranno eseguite sul database primario.
 - Le migrazioni di LogOperations creeranno le proprie tabelle **esclusivamente** all'interno di `logs_db`.
+
+---
+
+### 4. Gestione Trasparente delle Relazioni Cross-Database (Users & Storyboard)
+
+Nei database distribuiti, un problema classico dei framework ORM è che i log risiedono su `logs_db`, mentre le tabelle applicative come `users`, `orders`, `tickets` risiedono sul database principale `mysql`:
+* Per impostazione predefinita, le relazioni `MorphTo` di Laravel tenterebbero di cercare la tabella `users` sulla connessione del log (`logs_db.users`), generando l'errore SQL `1146 Table doesn't exist`.
+* **Risoluzione Automatica Nativa**: LogOperations include una factory polimorfica specializzata (`newMorphTo`) nei modelli `OperationLog` e `OperationSubject`. Quando un modello relazionato non ha una connessione hardcodata, il pacchetto reindirizza la query automaticamente alla connessione principale dell'applicazione (`config('database.default')`).
+* **Resilienza Storyboard**: Tutte le interrogazioni sugli utenti e sui soggetti dello Storyboard sono protette: anche in caso di disconnessione temporanea del database applicativo, la dashboard e la consultazione storica rimangono al 100% operative.
 
 ---
 
