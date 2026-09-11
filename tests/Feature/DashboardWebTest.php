@@ -16,7 +16,12 @@ class DashboardWebTest extends TestCase
         $response->assertStatus(200)
             ->assertSee('LOGOPERATIONS')
             ->assertSee('Dashboard Operazioni')
-            ->assertSee('Richieste Totali');
+            ->assertSee('Richieste Totali')
+            ->assertSee('Storyboard Record & Audit Trail', false)
+            ->assertSee('Studio Rotte')
+            ->assertSee('Studio Funzioni (Metodi)')
+            ->assertSee('Monitor Utente Live')
+            ->assertSee('Solo Codice Core');
     }
 
     public function test_dashboard_returns_404_when_disabled(): void
