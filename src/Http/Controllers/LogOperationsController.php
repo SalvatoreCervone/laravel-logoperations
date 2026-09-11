@@ -286,16 +286,20 @@ class LogOperationsController extends Controller
         $logs = $query->orderBy('dataoperazione', $order)
             ->orderBy('id', $order)
             ->limit($limit)
-            ->with('subjects')
+            ->with(['subjects', 'user'])
             ->get();
 
-        $events = $logs->map(function ($log) {
+        $events = $logs->map(function ($log) use ($subjectType, $subjectId) {
             $enriched = $this->enrichWithUserData($log);
             $classification = $this->classifyEvent($log);
 
             // Includi i modelli toccati dalla tabella relazionale
             $touchedModels = [];
+            $myAction = null;
             if ($log->relationLoaded('subjects') && $log->subjects->isNotEmpty()) {
+                $mySubject = $log->subjects->first(fn ($s) => $s->subject_type === $subjectType && (string) $s->subject_id === (string) $subjectId);
+                $myAction = $mySubject?->action;
+
                 $touchedModels = $log->subjects
                     ->groupBy('subject_type')
                     ->map(function ($items, $type) {
@@ -313,7 +317,38 @@ class LogOperationsController extends Controller
                     ->all();
             }
 
+            $isPrimary = ($log->subject_type === $subjectType && (string) $log->subject_id === (string) $subjectId);
+            if (!$myAction) {
+                $myAction = $isPrimary ? match (strtolower($log->verbo)) {
+                    'post' => 'created',
+                    'put', 'patch' => 'updated',
+                    'delete' => 'deleted',
+                    default => 'accessed',
+                } : 'touched';
+            }
+
+            $actionLabels = [
+                'created' => 'Creazione',
+                'updated' => 'Modifica',
+                'deleted' => 'Eliminazione',
+                'accessed' => 'Accesso',
+                'touched' => 'Coinvolto',
+            ];
+
+            $date = $log->dataoperazione ? Carbon::parse($log->dataoperazione) : null;
+
             return array_merge($enriched, [
+                'route' => $log->rotta,
+                'verb' => strtoupper($log->verbo),
+                'status_code' => $log->codicehttp,
+                'ip_address' => $log->client_ip,
+                'time_iso' => $date?->toIso8601String(),
+                'time_human' => $date?->diffForHumans(),
+                'time_formatted' => $date?->format('d/m/Y H:i:s'),
+                'is_primary_subject' => $isPrimary,
+                'subject_action' => $myAction,
+                'subject_action_label' => $actionLabels[$myAction] ?? ucfirst($myAction),
+                'primary_subject_label' => ($log->subject_type && $log->subject_id) ? class_basename($log->subject_type) . ' #' . $log->subject_id : null,
                 'classification' => $classification,
                 'core_stack' => $log->core_stack,
                 'full_stack' => $log->full_stack,
@@ -407,10 +442,13 @@ class LogOperationsController extends Controller
         $hasSteps = !empty($log->custom_traces['steps']);
 
         if ($isError || $isRollback) {
+            $label = $isRollback ? 'Rollback' : 'Errore ' . $log->codicehttp;
             return [
                 'category' => 'error',
+                'label' => $label,
+                'badge_label' => $label,
+                'badge_bg' => 'rgba(239, 68, 68, 0.18)',
                 'badge_color' => '#ef4444',
-                'badge_label' => $isRollback ? 'Rollback' : 'Errore ' . $log->codicehttp,
                 'title' => $isRollback
                     ? 'Rollback transazione su ' . strtoupper($log->verbo) . ' ' . $log->rotta
                     : 'Errore HTTP ' . $log->codicehttp . ($log->controllermethod ? ' in ' . class_basename($log->controllermethod) : ''),
@@ -422,8 +460,10 @@ class LogOperationsController extends Controller
             $stepTitle = $log->custom_traces['steps'][0]['label'] ?? 'Checkpoint';
             return [
                 'category' => 'checkpoint',
-                'badge_color' => '#3b82f6',
+                'label' => 'Checkpoint',
                 'badge_label' => 'Checkpoint',
+                'badge_bg' => 'rgba(59, 130, 246, 0.18)',
+                'badge_color' => '#3b82f6',
                 'title' => $stepTitle,
                 'icon' => 'flag',
             ];
@@ -432,8 +472,10 @@ class LogOperationsController extends Controller
         if ($verbo === 'post') {
             return [
                 'category' => 'create',
-                'badge_color' => '#10b981',
+                'label' => 'Creazione',
                 'badge_label' => 'Creazione',
+                'badge_bg' => 'rgba(16, 185, 129, 0.18)',
+                'badge_color' => '#10b981',
                 'title' => 'Creazione / Inserimento (' . strtoupper($log->verbo) . ')',
                 'icon' => 'plus-circle',
             ];
@@ -442,8 +484,10 @@ class LogOperationsController extends Controller
         if (in_array($verbo, ['put', 'patch'])) {
             return [
                 'category' => 'update',
-                'badge_color' => '#f59e0b',
+                'label' => 'Modifica',
                 'badge_label' => 'Modifica',
+                'badge_bg' => 'rgba(245, 158, 11, 0.18)',
+                'badge_color' => '#f59e0b',
                 'title' => 'Modifica entità (' . strtoupper($log->verbo) . ')',
                 'icon' => 'edit-3',
             ];
@@ -452,8 +496,10 @@ class LogOperationsController extends Controller
         if ($verbo === 'delete') {
             return [
                 'category' => 'delete',
-                'badge_color' => '#8b5cf6',
+                'label' => 'Eliminazione',
                 'badge_label' => 'Eliminazione',
+                'badge_bg' => 'rgba(139, 92, 246, 0.18)',
+                'badge_color' => '#8b5cf6',
                 'title' => 'Eliminazione record (' . strtoupper($log->verbo) . ')',
                 'icon' => 'trash-2',
             ];
@@ -461,8 +507,10 @@ class LogOperationsController extends Controller
 
         return [
             'category' => 'read',
-            'badge_color' => '#6b7280',
+            'label' => strtoupper($log->verbo),
             'badge_label' => strtoupper($log->verbo),
+            'badge_bg' => 'rgba(107, 114, 128, 0.18)',
+            'badge_color' => '#9ca3af',
             'title' => 'Accesso / Consultazione (' . strtoupper($log->verbo) . ')',
             'icon' => 'eye',
         ];

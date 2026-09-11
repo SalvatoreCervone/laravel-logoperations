@@ -1070,39 +1070,118 @@
             <div v-else-if="filteredStoryboardEvents.length" class="storyboard-timeline">
                 <div v-for="(event, idx) in filteredStoryboardEvents" :key="event.id" class="timeline-event-card">
                     <div :class="['timeline-node-marker', 'node-' + (event.classification?.category || 'default')]">
-                        •
+                        <span v-if="event.subject_action === 'created' || event.classification?.category === 'create'">+</span>
+                        <span v-else-if="event.subject_action === 'deleted' || event.classification?.category === 'delete'">−</span>
+                        <span v-else-if="event.classification?.category === 'error'">✕</span>
+                        <span v-else-if="event.classification?.category === 'checkpoint'">🚩</span>
+                        <span v-else>●</span>
                     </div>
 
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                        <div>
-                            <span class="badge" :style="{ background: event.classification?.badge_bg || '#1e2638', color: event.classification?.badge_color || '#fff', marginRight: '8px' }">
-                                @{{ event.classification?.label || 'EVENTO' }}
+                    <!-- Header dell'evento: Metodo, Azione, Rotta, Status, Durata e Data -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            <!-- Verbo HTTP -->
+                            <span :class="['badge', getVerbClass(event.verbo || event.verb)]" style="font-weight: 700; font-size: 11px; text-transform: uppercase;">
+                                @{{ (event.verbo || event.verb || 'GET').toUpperCase() }}
                             </span>
-                            <span class="mono" style="font-weight: 600; color: var(--text-primary); font-size: 13.5px;">@{{ event.route }}</span>
+
+                            <!-- Azione / Categoria -->
+                            <span class="badge" :style="{ background: (event.classification?.badge_color || '#3b82f6') + '22', color: event.classification?.badge_color || '#93c5fd', border: '1px solid ' + (event.classification?.badge_color || '#3b82f6') + '55', fontWeight: '600', fontSize: '11.5px' }">
+                                @{{ event.classification?.label || event.classification?.badge_label || 'Operazione' }}
+                            </span>
+
+                            <!-- Endpoint / Rotta -->
+                            <span class="mono" style="font-weight: 600; color: var(--text-primary); font-size: 13.5px; background: var(--surface-secondary); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border-subtle);">
+                                @{{ event.rotta || event.route || '—' }}
+                            </span>
+
+                            <!-- Status HTTP -->
+                            <span class="badge" :class="getStatusClass(event.codicehttp || event.status_code)" style="font-weight: 700; font-size: 11px;">
+                                HTTP @{{ event.codicehttp || event.status_code }}
+                            </span>
+
+                            <!-- Durata -->
+                            <span v-if="event.duration_ms != null" style="font-size: 11.5px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">
+                                ⏱️ @{{ event.duration_ms }} ms
+                            </span>
                         </div>
-                        <div style="font-size: 11.5px; color: var(--text-subtle); font-family: 'JetBrains Mono', monospace;">
-                            @{{ event.time_human }} (@{{ event.time_iso }})
+
+                        <!-- Data & Ora e Pulsante Dettaglio -->
+                        <div style="display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-subtle); font-family: 'JetBrains Mono', monospace;">
+                            <span style="color: var(--text-secondary); font-weight: 500;">@{{ event.time_human || formatTimestamp(event.dataoperazione) }}</span>
+                            <span style="opacity: 0.6; font-size: 11px;">(@{{ event.time_formatted || event.dataoperazione }})</span>
+                            <button class="btn-action" style="padding: 3px 10px; font-size: 11px; background: var(--surface-secondary); border: 1px solid var(--border-strong); color: var(--text-primary); cursor: pointer; border-radius: 4px;" @click="openDetail(event)" title="Visualizza tutti i dettagli del log">
+                                🔍 Dettagli Log #@{{ event.id }}
+                            </button>
                         </div>
                     </div>
 
-                    <div style="display: flex; gap: 16px; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; flex-wrap: wrap;">
-                        <div><strong style="color: var(--text-secondary);">Autore:</strong> @{{ event.user?.name || event.user?.email || 'Ospite' }}</div>
-                        <div><strong style="color: var(--text-secondary);">Durata:</strong> @{{ event.duration_ms }}ms</div>
-                        <div><strong style="color: var(--text-secondary);">IP:</strong> @{{ event.ip_address }}</div>
-                        <div><strong style="color: var(--text-secondary);">Status:</strong> <span :class="getStatusClass(event.status_code)">@{{ event.status_code }}</span></div>
+                    <!-- Banner Contestuale: Soggetto Primario vs Entità Correlata -->
+                    <div style="margin-bottom: 10px; padding: 7px 12px; border-radius: 6px; font-size: 12px; display: flex; align-items: center; gap: 8px;"
+                         :style="{
+                             background: event.is_primary_subject ? 'var(--primary-subtle)' : 'var(--surface-secondary)',
+                             border: '1px solid ' + (event.is_primary_subject ? 'var(--primary-border)' : 'var(--border-subtle)'),
+                             color: event.is_primary_subject ? '#93c5fd' : 'var(--text-secondary)'
+                         }">
+                        <span v-if="event.is_primary_subject">
+                            🎯 <strong>Soggetto Primario:</strong> L'operazione è stata eseguita direttamente su questo record (azione: <strong>@{{ event.subject_action || 'operazione' }}</strong>).
+                        </span>
+                        <span v-else>
+                            🔗 <strong>Entità Correlata:</strong> Questo record è stato coinvolto (azione: <strong>@{{ event.subject_action || 'aggiornato' }}</strong>) durante un'operazione su <strong>@{{ event.primary_subject_label || event.subject_label || (event.subject_type + ' #' + event.subject_id) }}</strong>.
+                        </span>
+                    </div>
+
+                    <!-- Metadati Sintetici: Autore, IP e Controller/Handler -->
+                    <div style="display: flex; gap: 18px; font-size: 12px; color: var(--text-muted); margin-bottom: 8px; flex-wrap: wrap;">
+                        <div><strong style="color: var(--text-secondary);">👤 Autore:</strong> @{{ event.user_label || event.user?.name || event.user?.email || 'Anonimo / Ospite' }}</div>
+                        <div><strong style="color: var(--text-secondary);">🌐 IP Client:</strong> @{{ event.client_ip || event.ip_address || '—' }}</div>
+                        <div v-if="event.controllermethod"><strong style="color: var(--text-secondary);">⚙️ Controller:</strong> <span class="mono" style="font-size: 11.5px; color: #a5b4fc;">@{{ event.controllermethod }}</span></div>
+                    </div>
+
+                    <!-- Modelli Coinvolti nell'Operazione (Multi-Subject) -->
+                    <div v-if="event.touched_models && event.touched_models.length > 0" style="background: var(--surface-secondary); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 8px 12px; margin-bottom: 8px;">
+                        <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+                            🧩 Entità modificate in questa operazione (@{{ event.touched_models.reduce((s, g) => s + g.count, 0) }} totali):
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+                            <template v-for="g in event.touched_models" :key="g.type">
+                                <span v-for="it in g.items" :key="it.id" 
+                                      style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; font-size: 11px; border-radius: 4px; cursor: pointer;"
+                                      :style="{
+                                          background: it.action === 'created' ? 'var(--success-subtle)' : it.action === 'deleted' ? 'var(--danger-subtle)' : 'var(--warning-subtle)',
+                                          border: '1px solid ' + (it.action === 'created' ? 'var(--success-border)' : it.action === 'deleted' ? 'var(--danger-border)' : 'var(--warning-border)'),
+                                          color: it.action === 'created' ? 'var(--success-text)' : it.action === 'deleted' ? 'var(--danger-text)' : 'var(--warning-text)'
+                                      }"
+                                      @click="openStoryboardForSubject(g.type, it.id)"
+                                      :title="'Apri Storyboard di ' + g.label + ' #' + it.id">
+                                    <strong>@{{ g.label }} #@{{ it.id }}</strong>
+                                    <span style="opacity: 0.7; font-size: 9.5px; text-transform: uppercase;">@{{ it.action }}</span>
+                                </span>
+                            </template>
+                        </div>
                     </div>
 
                     <!-- Steps ($model->logStep) -->
                     <div v-if="event.custom_traces?.steps?.length" style="background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 10px; margin-top: 8px;">
-                        <div style="font-size: 11.5px; font-weight: 600; color: #38bdf8; margin-bottom: 6px;">Passaggi Applicativi Registrati:</div>
+                        <div style="font-size: 11.5px; font-weight: 600; color: #38bdf8; margin-bottom: 6px;">🚩 Passaggi Applicativi Registrati ($model->logStep):</div>
                         <div v-for="(st, sI) in event.custom_traces.steps" :key="sI" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">
                             • <strong>@{{ st.label }}</strong>
                             <pre v-if="st.context && Object.keys(st.context).length" style="background: var(--surface-primary); padding: 6px; border-radius: 4px; font-size: 11px; margin-top: 4px; color: var(--text-muted); border: 1px solid var(--border-subtle);">@{{ JSON.stringify(st.context, null, 2) }}</pre>
                         </div>
                     </div>
 
+                    <!-- Parametri Inviati (Accordion) -->
+                    <div v-if="event.parametri && Object.keys(event.parametri).length" style="margin-top: 8px;">
+                        <details style="background: var(--surface-secondary); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 6px 10px; font-size: 12px;">
+                            <summary style="cursor: pointer; color: var(--text-secondary); font-weight: 500;">
+                                📦 Parametri / Payload Inviati
+                            </summary>
+                            <pre style="margin-top: 8px; background: var(--bg-base); padding: 8px; border-radius: 4px; font-size: 11.5px; font-family: 'JetBrains Mono', monospace; color: var(--text-secondary); overflow-x: auto; max-height: 200px;">@{{ JSON.stringify(event.parametri, null, 2) }}</pre>
+                        </details>
+                    </div>
+
                     <!-- Error Alert -->
-                    <div v-if="event.error" style="background: var(--danger-subtle); border: 1px solid var(--danger-border); border-radius: 6px; padding: 8px; margin-top: 8px; color: var(--danger-text); font-size: 12px;">
+                    <div v-if="event.error" style="background: var(--danger-subtle); border: 1px solid var(--danger-border); border-radius: 6px; padding: 8px 12px; margin-top: 8px; color: var(--danger-text); font-size: 12px;">
                         <strong>Errore:</strong> @{{ event.error }}
                     </div>
                 </div>

@@ -1465,8 +1465,22 @@
                                     <div style="display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--text-muted); flex-shrink: 0;">
                                         <span>👤 @{{ event.user_label }}</span>
                                         <span>🕒 @{{ formatDate(event.dataoperazione) }}</span>
+                                        <button class="sim-btn" style="padding: 2px 8px; font-size: 11px; background: #1e293b; color: #93c5fd; border: 1px solid #334155; border-radius: 4px;" @click.stop="openLogDetail(event)">
+                                            🔍 Log #@{{ event.id }}
+                                        </button>
                                         <span style="font-size: 12px; color: #a5b4fc;">@{{ expandedTimelineEvents.has(event.id) ? '▲' : '▼' }}</span>
                                     </div>
+                                </div>
+
+                                <!-- Banner Ruolo Soggetto (Primario vs Correlato) -->
+                                <div style="margin: 0 16px 8px; padding: 6px 10px; border-radius: 6px; font-size: 12px; display: flex; align-items: center; gap: 8px;"
+                                     :style="{
+                                         background: event.is_primary_subject ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                                         border: '1px solid ' + (event.is_primary_subject ? 'rgba(59, 130, 246, 0.3)' : 'rgba(255, 255, 255, 0.08)'),
+                                         color: event.is_primary_subject ? '#93c5fd' : '#cbd5e1'
+                                     }">
+                                    <span v-if="event.is_primary_subject">🎯 <strong>Soggetto Primario:</strong> Azione diretta su questo record (azione: <strong>@{{ event.subject_action }}</strong>).</span>
+                                    <span v-else>🔗 <strong>Entità Correlata:</strong> Modificato (azione: <strong>@{{ event.subject_action }}</strong>) durante un'operazione su <strong>@{{ event.primary_subject_label || event.subject_label }}</strong>.</span>
                                 </div>
 
                                 <!-- Card Collapsible Details -->
@@ -1483,6 +1497,28 @@
                                         <span style="background: #1e293b; padding: 2px 8px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #a5b4fc;">
                                             @{{ event.controllermethod }}
                                         </span>
+                                    </div>
+
+                                    <!-- Modelli Coinvolti nell'Operazione -->
+                                    <div v-if="event.touched_models && event.touched_models.length > 0" style="background: #0f172a; border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 12px; margin-top: 4px;">
+                                        <div style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px;">
+                                            🧩 Entità modificate in questa operazione:
+                                        </div>
+                                        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                            <template v-for="g in event.touched_models" :key="g.type">
+                                                <span v-for="it in g.items" :key="it.id" 
+                                                      style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; font-size: 11px; border-radius: 4px; cursor: pointer;"
+                                                      :style="{
+                                                          background: it.action === 'created' ? 'var(--success-subtle)' : it.action === 'deleted' ? 'var(--danger-subtle)' : 'var(--warning-subtle)',
+                                                          border: '1px solid ' + (it.action === 'created' ? 'var(--success-border)' : it.action === 'deleted' ? 'var(--danger-border)' : 'var(--warning-border)'),
+                                                          color: it.action === 'created' ? 'var(--success-text)' : it.action === 'deleted' ? 'var(--danger-text)' : 'var(--warning-text)'
+                                                      }"
+                                                      @click="openStoryboardForSubject(g.type, it.id)">
+                                                    <strong>@{{ g.label }} #@{{ it.id }}</strong>
+                                                    <span style="opacity: 0.7; font-size: 9.5px; text-transform: uppercase;">@{{ it.action }}</span>
+                                                </span>
+                                            </template>
+                                        </div>
                                     </div>
 
                                     <!-- Custom Steps ($order->logStep) -->
