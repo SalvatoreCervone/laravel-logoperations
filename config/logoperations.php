@@ -467,14 +467,19 @@ return [
     /*
     |--------------------------------------------------------------------------
     | Campi Ricercabili sull'Utente Polimorfico
+    /*
+    |--------------------------------------------------------------------------
+    | Modelli Utente Applicativi (Ricerca Polimorfica)
     |--------------------------------------------------------------------------
     |
-    | Colonne sulla tabella dell'utente autenticato sulle quali il
-    | controller eseguirà la ricerca testuale (LIKE).
-    | Vengono verificate dinamicamente: se una colonna non esiste
-    | nella tabella, viene silenziosamente ignorata.
+    | Elenco esplicito delle classi dei modelli utente dell'applicazione
+    | (es. [\App\Models\User::class, \App\Models\Admin::class]).
+    | Se vuoto (default: []), il controller rileva dinamicamente i tipi presenti
+    | nella tabella log mettendoli in cache (TTL 1 ora) per non rallentare le ricerche.
     |
     */
+
+    'user_models' => [],
 
     'user_search_fields' => ['name', 'cognome', 'email'],
 

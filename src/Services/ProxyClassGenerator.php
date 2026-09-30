@@ -73,6 +73,12 @@ class ProxyClassGenerator
             return null;
         }
 
+        // Se la classe è readonly (PHP 8.2+), una sottoclasse non può estenderla con proprietà dinamiche o non-readonly
+        if (method_exists($ref, 'isReadOnly') && $ref->isReadOnly()) {
+            \Illuminate\Support\Facades\Log::info("[LogOperations] Impossibile generare proxy per la classe readonly {$cleanClassName}. Usa l'attributo #[Traceable] o LogOperations::step().");
+            return null;
+        }
+
         $proxyShortName = str_replace('\\', '_', $cleanClassName) . '_Proxy';
         $proxyNamespace = 'SalvatoreCervone\\LogOperations\\GeneratedProxies';
         $fullProxyName = $proxyNamespace . '\\' . $proxyShortName;

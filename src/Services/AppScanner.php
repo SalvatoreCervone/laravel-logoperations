@@ -218,6 +218,8 @@ class AppScanner
                         'class_name'              => $className,
                         'short_name'              => $ref->getShortName(),
                         'category'                => $category,
+                        'is_readonly'             => method_exists($ref, 'isReadOnly') && $ref->isReadOnly(),
+                        'is_final'                => $ref->isFinal(),
                         'has_traceable_attribute' => !empty($ref->getAttributes(\SalvatoreCervone\LogOperations\Attributes\Traceable::class)),
                         'methods'                 => $methods,
                     ];

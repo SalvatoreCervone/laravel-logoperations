@@ -96,7 +96,7 @@ class LogOperationsMiddleware
         | 2. Il log stesso non faccia parte di una transazione che verrà annullata
         |----------------------------------------------------------------------
         */
-        $transactionInfo = $this->handlePendingTransactions($statusCode, $response, $initialTransactionLevel);
+        $transactionInfo = $this->handlePendingTransactions($statusCode, $response, $initialTransactionLevel, $request);
 
         /*
         |----------------------------------------------------------------------
@@ -372,7 +372,7 @@ class LogOperationsMiddleware
      *
      * @return array{level: int|null, action: string|null}
      */
-    protected function handlePendingTransactions(int $statusCode, Response $response, int $initialLevel = 0): array
+    protected function handlePendingTransactions(int $statusCode, Response $response, int $initialLevel = 0, ?Request $request = null): array
     {
         $config = config('logoperations.transactions', []);
 
@@ -387,6 +387,7 @@ class LogOperationsMiddleware
         }
 
         $action = null;
+        $endpointInfo = $request ? $request->getMethod() . ' ' . $request->getRequestUri() : 'richiesta HTTP';
 
         // Rileva se c'è un'eccezione nella risposta
         $hasException = isset($response->exception) && $response->exception;
@@ -399,8 +400,8 @@ class LogOperationsMiddleware
                 }
                 $action = 'rolled_back';
 
-                Log::info('[LogOperations] Transazione pendente rilevata (livello ' . $level . '). '
-                    . 'Eseguito rollback automatico su errore HTTP ' . $statusCode);
+                Log::warning('[LogOperations] Transazione pendente non chiusa (livello ' . $level . ') su ' . $endpointInfo . '. '
+                    . 'Eseguito rollback automatico su errore HTTP ' . $statusCode . '.');
             }
         } else {
             // Successo ma transazione non chiusa (anomalia dello sviluppatore)
@@ -410,17 +411,18 @@ class LogOperationsMiddleware
                 }
                 $action = 'committed';
 
-                Log::info('[LogOperations] Transazione pendente rilevata (livello ' . $level . '). '
-                    . 'Eseguito commit automatico su successo HTTP ' . $statusCode);
+                Log::warning('[LogOperations] Transazione pendente non chiusa (livello ' . $level . ') su ' . $endpointInfo . '. '
+                    . 'Eseguito commit automatico su successo HTTP ' . $statusCode
+                    . '. ATTENZIONE: Verificare il codice applicativo per assicurare la chiusura esplicita delle transazioni.');
             } else {
                 while (DB::transactionLevel() > $initialLevel) {
                     DB::rollBack();
                 }
                 $action = 'rolled_back_dangling_on_success';
 
-                Log::warning('[LogOperations] Transazione pendente rilevata (livello ' . $level . '). '
+                Log::warning('[LogOperations] Transazione pendente non chiusa (livello ' . $level . ') su ' . $endpointInfo . '. '
                     . 'Eseguito rollback preventivo su successo HTTP ' . $statusCode
-                    . '. Verificare il controller che non chiude la transazione.');
+                    . '. ATTENZIONE: Il controller non ha effettuato il commit dei dati; verificare la logica applicativa.');
             }
         }
 

@@ -230,19 +230,25 @@ class OperationLog extends Model
         $type = $subject instanceof Model ? $subject->getMorphClass() : $subject;
         $subjectId = $subject instanceof Model ? (string) $subject->getKey() : ($id !== null ? (string) $id : null);
 
-        return $query->where(function (Builder $q) use ($type, $subjectId) {
-            // Soggetto primario (colonne sulla tabella principale)
-            $q->where(function (Builder $primary) use ($type, $subjectId) {
-                $primary->where('subject_type', $type);
+        $tableName = $this->getTable();
+        $subjectsTable = config('logoperations.subjects_table_name', 'log_operazioni_soggetti');
+
+        return $query->where(function (Builder $q) use ($type, $subjectId, $tableName, $subjectsTable) {
+            // Soggetto primario (colonne sulla tabella principale con indice composto)
+            $q->where(function (Builder $primary) use ($type, $subjectId, $tableName) {
+                $primary->where($tableName . '.subject_type', $type);
                 if ($subjectId !== null) {
-                    $primary->where('subject_id', $subjectId);
+                    $primary->where($tableName . '.subject_id', $subjectId);
                 }
             })
             // OPPURE soggetto collegato nella tabella relazionale
-            ->orWhereHas('subjects', function (Builder $rel) use ($type, $subjectId) {
-                $rel->where('subject_type', $type);
+            ->orWhereExists(function ($sub) use ($type, $subjectId, $tableName, $subjectsTable) {
+                $sub->selectRaw(1)
+                    ->from($subjectsTable)
+                    ->whereColumn($subjectsTable . '.log_id', $tableName . '.id')
+                    ->where($subjectsTable . '.subject_type', $type);
                 if ($subjectId !== null) {
-                    $rel->where('subject_id', $subjectId);
+                    $sub->where($subjectsTable . '.subject_id', $subjectId);
                 }
             });
         });

@@ -92,6 +92,7 @@ class RuleEngine
     public function flushCache(): void
     {
         Cache::forget(self::CACHE_KEY);
+        Cache::forget('logoperations_distinct_user_types');
     }
 
     /**

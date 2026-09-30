@@ -928,16 +928,24 @@ class LogOperationsController extends Controller
 
     /**
      * Ottiene i tipi di utente distinti presenti nella tabella log.
+     * Utilizza la cache e supporta la configurazione statica user_models per azzerare le query.
      */
     protected function getDistinctUserTypes(): array
     {
         try {
-            return OperationLog::query()
-                ->select('user_type')
-                ->distinct()
-                ->whereNotNull('user_type')
-                ->pluck('user_type')
-                ->toArray();
+            $configured = config('logoperations.user_models', []);
+            if (!empty($configured)) {
+                return (array) $configured;
+            }
+
+            return \Illuminate\Support\Facades\Cache::remember('logoperations_distinct_user_types', 3600, function () {
+                return OperationLog::query()
+                    ->select('user_type')
+                    ->distinct()
+                    ->whereNotNull('user_type')
+                    ->pluck('user_type')
+                    ->toArray();
+            });
         } catch (\Throwable $e) {
             // Fallback: tenta con il modello utente di default di Laravel
             return ['App\\Models\\User'];

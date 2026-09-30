@@ -144,6 +144,15 @@ class ProxyClassGeneratorTest extends TestCase
         $this->assertInstanceOf(ServiceWithDefaults::class, $proxy);
         $this->assertEquals(42, $proxy->process());
     }
+
+    public function test_readonly_class_cannot_be_subclassed_and_returns_original_target(): void
+    {
+        $target = new ReadOnlyDummyService();
+        $proxy = $this->generator->createProxy($target, ReadOnlyDummyService::class, ['status']);
+
+        $this->assertSame($target, $proxy);
+        $this->assertEquals('active', $proxy->status());
+    }
 }
 
 class ServiceWithDefaults
@@ -153,5 +162,13 @@ class ServiceWithDefaults
     public function process(int $limit = self::DEFAULT_LIMIT, ?\stdClass $obj = null): int
     {
         return $limit;
+    }
+}
+
+readonly class ReadOnlyDummyService
+{
+    public function status(): string
+    {
+        return 'active';
     }
 }
