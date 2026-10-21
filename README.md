@@ -400,7 +400,7 @@ Registri il middleware a livello globale con il default di fabbrica `'mode' => '
 ---
 
 ### 🎯 Modalità 2: Mirato da Codice (Gruppi o Singole Rotte)
-Applichi il middleware direttamente alle rotte o ai gruppi di risorse business. Sono supportati indifferentemente sia l'alias testuale sia la classe (consigliata per Laravel 11/12):
+Applichi il middleware direttamente alle rotte o ai gruppi di risorse business. Sono supportati indifferentemente sia l'alias testuale sia la classe (consigliata per Laravel 11/12/13):
 
 ```php
 use SalvatoreCervone\LogOperations\Http\Middleware\LogOperationsMiddleware;
