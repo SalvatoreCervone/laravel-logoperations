@@ -26,7 +26,11 @@ class AppScanner
     public function getRoutes(): array
     {
         $allRoutes = Route::getRoutes()->getRoutes();
-        $rules = OperationRule::routes()->get();
+        try {
+            $rules = OperationRule::routes()->get();
+        } catch (\Throwable $e) {
+            $rules = collect();
+        }
 
         $result = [];
         $apiPrefix = config('logoperations.api_prefix', 'api/logoperations');
@@ -123,7 +127,11 @@ class AppScanner
             return [];
         }
 
-        $rules = OperationRule::methods()->get()->keyBy('target');
+        try {
+            $rules = OperationRule::methods()->get()->keyBy('target');
+        } catch (\Throwable $e) {
+            $rules = collect();
+        }
         $classes = [];
 
         $iterator = new RecursiveIteratorIterator(

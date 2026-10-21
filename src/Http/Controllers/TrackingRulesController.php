@@ -54,22 +54,26 @@ class TrackingRulesController extends Controller
      */
     public function getRules(): JsonResponse
     {
-        $rules = OperationRule::latest()->get()->map(function ($rule) {
-            return [
-                'id'           => $rule->id,
-                'name'         => $rule->name,
-                'type'         => $rule->type,
-                'target'       => $rule->target,
-                'http_methods' => $rule->http_methods ?: ['*'],
-                'stack_level'  => $rule->stack_level,
-                'is_active'    => (bool) $rule->is_active,
-                'is_expired'   => $rule->isExpired(),
-                'expires_at'   => $rule->expires_at?->toIso8601String(),
-                'seconds_remaining' => $rule->expires_at ? max(0, (int) now()->diffInSeconds($rule->expires_at, false)) : null,
-                'metadata'     => $rule->metadata,
-                'created_at'   => $rule->created_at?->toIso8601String(),
-            ];
-        });
+        try {
+            $rules = OperationRule::latest()->get()->map(function ($rule) {
+                return [
+                    'id'           => $rule->id,
+                    'name'         => $rule->name,
+                    'type'         => $rule->type,
+                    'target'       => $rule->target,
+                    'http_methods' => $rule->http_methods ?: ['*'],
+                    'stack_level'  => $rule->stack_level,
+                    'is_active'    => (bool) $rule->is_active,
+                    'is_expired'   => $rule->isExpired(),
+                    'expires_at'   => $rule->expires_at?->toIso8601String(),
+                    'seconds_remaining' => $rule->expires_at ? max(0, (int) now()->diffInSeconds($rule->expires_at, false)) : null,
+                    'metadata'     => $rule->metadata,
+                    'created_at'   => $rule->created_at?->toIso8601String(),
+                ];
+            });
+        } catch (\Throwable $e) {
+            $rules = collect();
+        }
 
         return response()->json([
             'success' => true,

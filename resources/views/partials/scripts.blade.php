@@ -3,7 +3,7 @@
 
     createApp({
         setup() {
-            const apiPrefix = '{{ $apiPrefix }}';
+            const apiPrefix = '{{ trim($apiPrefix, "/") }}';
             const currentTab = ref('logs');
             const logs = ref([]);
             const stats = ref({});
@@ -307,22 +307,23 @@
             // Tracking Studio Logic
             async function fetchStudioData() {
                 try {
-                    const [rRes, cRes, ruRes, uRes] = await Promise.all([
-                        apiFetch(`/${apiPrefix}/studio/routes`),
-                        apiFetch(`/${apiPrefix}/studio/classes`),
-                        apiFetch(`/${apiPrefix}/studio/rules`),
-                        apiFetch(`/${apiPrefix}/studio/users`),
+                    const [rRes, cRes, ruRes, uRes] = await Promise.allSettled([
+                        apiFetch(`/${apiPrefix}/studio/routes`).then(r => r.ok ? r.json() : { data: [] }),
+                        apiFetch(`/${apiPrefix}/studio/classes`).then(r => r.ok ? r.json() : { data: [] }),
+                        apiFetch(`/${apiPrefix}/studio/rules`).then(r => r.ok ? r.json() : { data: [] }),
+                        apiFetch(`/${apiPrefix}/studio/users`).then(r => r.ok ? r.json() : { data: [] }),
                     ]);
-                    const rData = await rRes.json();
+
+                    const rData = rRes.status === 'fulfilled' ? rRes.value : { data: [] };
                     routes.value = rData.data || (Array.isArray(rData) ? rData : []);
 
-                    const cData = await cRes.json();
+                    const cData = cRes.status === 'fulfilled' ? cRes.value : { data: [] };
                     classes.value = cData.data || (Array.isArray(cData) ? cData : []);
 
-                    const ruData = await ruRes.json();
+                    const ruData = ruRes.status === 'fulfilled' ? ruRes.value : { data: [] };
                     const rules = ruData.data || (Array.isArray(ruData) ? ruData : []);
 
-                    const uData = await uRes.json();
+                    const uData = uRes.status === 'fulfilled' ? uRes.value : { data: [] };
                     usersList.value = uData.data || (Array.isArray(uData) ? uData : []);
 
                     activeSessions.value = rules
